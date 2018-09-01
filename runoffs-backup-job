@@ -7,8 +7,8 @@ use IO::Dir;
 use IO::File;
 use Time::Local;
 
-$SourceDir = '/home/runoffs/Dropbox/Runoffs-2014';
-$BackupDir = '/home/runoffs/Backups/Runoffs-2014';
+$SourceDir = '/home/runoffs/Dropbox/Runoffs-2015';
+$BackupDir = '/home/runoffs/Backups/Runoffs-2015';
 
 $| = 1;
 
@@ -43,6 +43,7 @@ update_status "$last_backup $this_backup Running";
 print "\nRunning backup; last=$last_backup; this=$this_backup\n";
 
 my @cmd = qw(rsync -av --delete);
+push(@cmd, '--exclude=/.dropbox');
 push(@cmd, "--link-dest=$BackupDir/$last_backup") if defined $last_backup;
 push(@cmd, "$SourceDir/", "$BackupDir/$this_backup/");
 my $r = system(@cmd);

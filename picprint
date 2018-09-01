@@ -1,0 +1,4 @@
+#!/bin/sh
+
+convert "$1" -rotate '90>' -density 300 -resize 2400x3000 pdf:- |
+  lp ${2:+-d"$2"}

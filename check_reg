@@ -18,18 +18,19 @@ use vars qw(@Cols %Cols %QualGroup %RaceGroup %Keys %OK_Blank $VERBOSE);
 ## These must match the actual column header
 %OK_Blank = map(($_ => 1),
   'Middle', 'Addr 1', 'Addr 2', 'Addr 3', 'Postal Code', 'Email',
-  'Color', 'Sponsor/Team', 'Car Year', 'Engine Make');
+  'Color', 'Sponsor/Team', 'Car Year', 'Engine Make', ''
+);
 
 # Qualifying Groups (except single classes)
-foreach my $group (qw(STU/T3 EP/GTL F5/FF AS/T1 FC/FE/FM
-  FP/HP GT1/GT2/GT3 FA/FB STL/T2 P1/P2 BSpec/T4)) {
+foreach my $group (qw(SRF/SRF3 GT3/STU/T2 EP/GTL F5/FF AS/T1
+  FC/FE/FM B-Spec/T4 FA/FB STL/T3 FP/HP P1/P2 GT1/GT2)) {
   foreach my $class (split(/\//, $group)) {
     $QualGroup{$class} = $group;
   }
 }
 
 # Race Groups (except single classes and qual groups racing all together)
-foreach my $group (qw(FE/FM)) {
+foreach my $group (qw()) {
   foreach my $class (split(/\//, $group)) {
     $RaceGroup{$class} = $group;
   }
@@ -43,7 +44,7 @@ if ($ARGV[0] eq '-v') {
 # Read the header
 {
   $_ = <>;
-  chomp;
+  s/\r?\n$//;
   @Cols = split(/\t/, $_);
   my %fields = map(($Cols[$_] => $_), 0 .. @Cols-1);
   foreach (keys %Cols) {
@@ -62,7 +63,7 @@ sub problem {
   print "$x\n";
 }
 while (<>) {
-  chomp;
+  s/\r?\n$//;
   my @fields = split(/\t/, $_);
   $carno = $fields[$Cols{car}];
   $class = $fields[$Cols{class}];

@@ -1,0 +1,619 @@
+#!/usr/bin/perl
+
+use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
+use File::Basename;
+use Getopt::Std;
+use HTML::Parser;
+use IO::File;
+use IO::Pipe;
+use LWP;
+use POSIX qw(strftime);
+use URI::Escape;
+use Text::Wrap;
+
+use strict;
+use vars qw($PROG $PROGDIR %ClassKey);
+use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
+use vars qw($OutDir $Template $Printer $SERVER $USERID $PASSWD);
+use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
+
+$PROG = File::Spec->rel2abs($0);
+$PROGDIR = dirname($PROG);
+
+$SERVER   = '172.16.20.2';
+$USERID   = 'tands1';
+$OutDir   = "$PROGDIR/../Actions";
+$Template = join('', <DATA>);
+
+$Text::Wrap::unexpand = 0;
+
+%ClassKey = (
+  'b292b72c-da78-4ef9-87fc-108c61f9e186' => 'Qualifying 09/21 08:00 SRF',
+  'e5b78ea5-5377-4d0e-8f4f-54ce723ea157' => 'Qualifying 09/21 08:00 SRF3',
+  'c1846eae-78dd-480d-9ba0-0548346b700c' => 'Qualifying 09/21 08:40 STU',
+  'e1784df6-29bc-4079-bcbc-9fb742acfc3f' => 'Qualifying 09/21 08:40 T2',
+  '6faf00ae-5895-4e14-bb75-cd592c695fbb' => 'Qualifying 09/21 08:40 GT3',
+  '9daed19d-7580-4b85-a793-98a48c0bbeff' => 'Qualifying 09/21 09:20 EP',
+  '4dee1a88-e3d4-4a8b-9bb0-98fc622adec4' => 'Qualifying 09/21 09:20 GTL',
+  '24c1b108-1d29-4fc7-9b60-de9a522b7437' => 'Qualifying 09/21 10:00 FF',
+  'ea58ec0d-0161-4e5b-a604-fc3ff6c162ca' => 'Qualifying 09/21 10:00 F5',
+  'd7d85d5c-049d-4252-a006-05a9c1a86a66' => 'Qualifying 09/21 10:40 AS',
+  'a80c591d-db65-4993-a6a6-4a7906276529' => 'Qualifying 09/21 10:40 T1',
+  'cec415e4-8378-4821-9e0f-cc1986d22df3' => 'Qualifying 09/21 11:20 FV',
+  '2c77b312-50b4-49d5-8301-917a11215312' => 'Qualifying 09/21 12:00 SM',
+  '8caefdd4-0e88-49c6-b2fb-a87b0bab6609' => 'Qualifying 09/21 13:30 FM',
+  'f2bf2f2c-d44a-4007-b271-cd1acc74a2cc' => 'Qualifying 09/21 13:30 FC',
+  '0a7fade8-ed9a-44cf-8a86-2a9931a6af8f' => 'Qualifying 09/21 13:30 FE',
+  '2c888272-cfeb-4b8b-9cd5-780cca4ff4c4' => 'Qualifying 09/21 14:05 T4',
+  'a80f54ac-060f-4f4a-b78e-f39326da1034' => 'Qualifying 09/21 14:05 B-Spec',
+  '0a24de9d-e234-47ed-b47c-587e1e265ceb' => 'Qualifying 09/21 14:40 FB',
+  'b29fe7bf-6484-452b-aad0-5e4441c42f29' => 'Qualifying 09/21 14:40 FA',
+  'ea395da0-726f-4ba2-8a56-8149d09d8809' => 'Qualifying 09/21 15:15 T3',
+  'a2d5985a-7461-4f95-854e-9d7097b166dd' => 'Qualifying 09/21 15:15 STL',
+  'd1297e19-e20e-4cd0-aa19-2fa3486b62b3' => 'Qualifying 09/21 15:50 HP',
+  'f4fe24cf-a1b8-42e0-946b-10d5f9e46292' => 'Qualifying 09/21 15:50 FP',
+  '085834a7-c43b-4e5c-bce0-f3aeb210a1db' => 'Qualifying 09/21 16:25 P2',
+  '9b0170d8-0d6a-47ea-a858-bb1519bb7099' => 'Qualifying 09/21 16:25 P1',
+  '8ec3eba7-9620-4de3-ad03-3ddccf27d66f' => 'Qualifying 09/21 17:00 GT1',
+  'dec7ab00-4717-4d0e-bea6-4714dffecd9f' => 'Qualifying 09/21 17:00 GT2',
+  '4b66f7cf-9aed-4fab-8cb6-435601fd5d0b' => 'Qualifying 09/22 08:40 FM',
+  '9808a809-6f1f-4dc7-82c4-9cf9b44c9cc2' => 'Qualifying 09/22 08:40 FC',
+  '34c3364c-4cc3-4bb2-a2ed-893356a8706e' => 'Qualifying 09/22 08:40 FE',
+  'fe0ebf31-6c8b-48cf-9b96-c7e7db2cf818' => 'Qualifying 09/22 09:20 T4',
+  'f3075ae4-2acb-4fc9-b663-fbc61850b65e' => 'Qualifying 09/22 09:20 B-Spec',
+  'fdbd7934-aaa5-4c00-a04f-87b46f1ebfcc' => 'Qualifying 09/22 10:00 FB',
+  '10cd7aa0-d38b-490a-b95e-5aac15734d69' => 'Qualifying 09/22 10:00 FA',
+  'fdf0d046-28af-47b0-9c2a-bc69bbe224c3' => 'Qualifying 09/22 10:40 STL',
+  'b2f25ef2-66bb-4eb2-9867-db20e75364b9' => 'Qualifying 09/22 10:40 T3',
+  'a950809a-41e5-4f29-a47c-9d0b5fc2ffd8' => 'Qualifying 09/22 11:20 HP',
+  'ef07914b-7497-4243-b741-3782e1ac46f7' => 'Qualifying 09/22 11:20 FP',
+  'c57e780e-08a1-4900-bf2f-3045e6b61e36' => 'Qualifying 09/22 12:00 P2',
+  'bcfad081-41da-426a-95a7-7c6ebbf67ca5' => 'Qualifying 09/22 12:00 P1',
+  'cbb81c12-2ffd-40cd-9884-7765eeb3b5ae' => 'Qualifying 09/22 13:30 GT1',
+  '9e0cc707-279b-4fa7-803a-4674fb6c0423' => 'Qualifying 09/22 13:30 GT2',
+  '16d7dd43-d23a-4db4-8831-db3ec1895b6a' => 'Qualifying 09/22 14:05 SRF3',
+  '78abad4b-f20d-401a-8d9f-e0b1b90bce30' => 'Qualifying 09/22 14:05 SRF',
+  '4dd75e59-14fb-404c-a735-ed7e19935f29' => 'Qualifying 09/22 14:40 GT3',
+  '6a100a77-ae88-4bc6-9f59-9e5d6d73c533' => 'Qualifying 09/22 14:40 STU',
+  '312f5300-1925-4b9c-aa66-355e37e3a23b' => 'Qualifying 09/22 14:40 T2',
+  '4c06898d-e429-431e-baff-9ee9e1cdb9db' => 'Qualifying 09/22 15:15 GTL',
+  'ae522953-03dd-483b-8b8d-db2932be8acd' => 'Qualifying 09/22 15:15 EP',
+  '0656cf65-a84f-4650-8762-bb4ab4d157f7' => 'Qualifying 09/22 15:50 F5',
+  'f3841b27-1a47-468e-a207-802fa4b59e6c' => 'Qualifying 09/22 15:50 FF',
+  'cf0aa79c-cf20-4aee-beb5-442966de0ee6' => 'Qualifying 09/22 16:25 AS',
+  '8f75bbb1-ea34-479a-9b2b-857ad332de51' => 'Qualifying 09/22 16:25 T1',
+  'd3b28aa3-15a6-45d8-a27d-d326898c1821' => 'Qualifying 09/22 17:00 FV',
+  '75b51a50-4af5-4ce3-93b5-4a037dc5f712' => 'Qualifying 09/22 19:30 SM',
+  'f4431ed2-7d9a-4085-b606-66241bd7c533' => 'Qualifying 09/23 08:00 F5',
+  'b582e0c8-a8ac-42ed-adfd-0e5791a8bd34' => 'Qualifying 09/23 08:00 FF',
+  'a33b5adc-0401-4c61-b82e-12d7961813dc' => 'Qualifying 09/23 08:40 AS',
+  '26cddd64-60a8-4add-9f9a-f42aca0d7d2b' => 'Qualifying 09/23 08:40 T1',
+  'ed57e01f-f959-495c-937b-4d586fb5bd2c' => 'Qualifying 09/23 09:20 FV',
+  '6301cfeb-d292-4f50-8fc1-861864fb70ef' => 'Qualifying 09/23 10:00 SM',
+  'bbcda476-48bc-406b-9968-8711b21e5988' => 'Qualifying 09/23 10:40 SRF3',
+  '0c56f1e7-7200-4e92-8f53-a934f5b59c59' => 'Qualifying 09/23 10:40 SRF',
+  'ab852c48-fa20-4007-b71b-94cf22f325b5' => 'Qualifying 09/23 11:20 STU',
+  'f2622c2f-b5f3-4ea7-b633-6652c50357be' => 'Qualifying 09/23 11:20 T2',
+  '876064eb-7997-42c9-8439-fd9cc474ca18' => 'Qualifying 09/23 11:20 GT3',
+  'aa800c75-e249-4841-83ae-7c58d00f838a' => 'Qualifying 09/23 12:00 GTL',
+  '3186a677-a7b3-4797-8d98-26c756098b2f' => 'Qualifying 09/23 12:00 EP',
+  '89d94492-9c50-4efb-b4d9-34cc84c7c3d9' => 'Qualifying 09/23 13:30 STL',
+  '397b1e28-a45d-4b74-818e-fee97dc4171c' => 'Qualifying 09/23 13:30 T3',
+  'bc183ace-c197-49b3-ae73-30495533cab0' => 'Qualifying 09/23 14:05 HP',
+  '9b976252-61f8-4cc6-ae7b-47df5d2eaf01' => 'Qualifying 09/23 14:05 FP',
+  'facd76fa-b724-44a9-be8b-32e790ed0275' => 'Qualifying 09/23 14:40 P1',
+  '74e7e8e8-9fbb-4357-93a5-de7d94bcb4e9' => 'Qualifying 09/23 14:40 P2',
+  '017dba11-72fc-4bf0-a137-c7e62edcb4ae' => 'Qualifying 09/23 15:15 GT1',
+  'dc4811a7-6066-4e3b-a199-212e26aa353e' => 'Qualifying 09/23 15:15 GT2',
+  'd0010aaf-82e9-4ca8-b7ce-13dabc1c7464' => 'Qualifying 09/23 15:50 FM',
+  '91edbf4a-3ce6-4d7a-96e7-db1df2f63c17' => 'Qualifying 09/23 15:50 FE',
+  'a4132952-d4c4-4bf3-b4ad-b629634daa61' => 'Qualifying 09/23 15:50 FC',
+  'ce66b808-3308-42c3-9fcb-df88f9de589e' => 'Qualifying 09/23 16:25 T4',
+  'b9bee942-88a0-44b3-bf79-7a5391c0b61e' => 'Qualifying 09/23 16:25 B-Spec',
+  '35b1df1c-c466-4b7d-81b7-141da8d60fdb' => 'Qualifying 09/23 17:00 FA',
+  '011debe7-f17b-4c2f-add7-01e44ff83610' => 'Qualifying 09/23 17:00 FB',
+  'f2b12b95-3769-4c6c-9857-82456f084793' => 'Qualifying 09/24 08:00 STL',
+  'eb8693a1-c128-4d37-acfa-91130fab1c42' => 'Qualifying 09/24 08:00 T3',
+  '60682cd7-0dad-4cb5-ac4c-9dd7c238db10' => 'Qualifying 09/24 08:40 FP',
+  'e95c1bf4-de6e-4ef4-be12-4e65e2a77af6' => 'Qualifying 09/24 08:40 HP',
+  'b9331938-9ad0-47d4-afee-b647f3256703' => 'Qualifying 09/24 09:20 P1',
+  '07b09733-9773-4d82-82ee-f8b939ccfe3e' => 'Qualifying 09/24 09:20 P2',
+  'fe38f979-cf87-4b32-824c-af9466b2b33f' => 'Qualifying 09/24 10:00 GT2',
+  '62d03436-a5ac-40b9-87fb-60bed60eb9b5' => 'Qualifying 09/24 10:00 GT1',
+  '8bc780db-4c13-496d-ab42-0fba3194585c' => 'Qualifying 09/24 10:40 FC',
+  '8336ddb4-8817-42ff-8239-45653809cc23' => 'Qualifying 09/24 10:40 FE',
+  'a881e26d-5b6d-475a-b51d-8fe294146351' => 'Qualifying 09/24 10:40 FM',
+  'ca4f4a72-9fe4-4bfc-8dd4-ac4e1f58b3c0' => 'Qualifying 09/24 11:20 T4',
+  'a540fc94-0214-4a7d-9420-dbe983ca4cb2' => 'Qualifying 09/24 11:20 B-Spec',
+  'dced44f6-7ea4-4b74-8227-b3060239f594' => 'Qualifying 09/24 12:00 FB',
+  '090bf515-5030-4838-8663-71bc17329b5b' => 'Qualifying 09/24 12:00 FA',
+  '3bbfef84-2ae3-4ba6-b67c-ee5dd1051001' => 'Qualifying 09/24 13:30 FF',
+  '258509f8-9799-4163-b38c-ee6f6ad42517' => 'Qualifying 09/24 13:30 F5',
+  '79a52701-6721-41cc-be3b-ced283529459' => 'Qualifying 09/24 14:05 T1',
+  '4c25f2d9-d0f0-44ce-a287-4c353665e509' => 'Qualifying 09/24 14:05 AS',
+  '2877c631-7316-46cc-9603-6002d5982345' => 'Qualifying 09/24 14:40 FV',
+  '1803929a-31f9-4649-be35-ae2dbf28c385' => 'Qualifying 09/24 15:15 SM',
+  '26ceaa48-34c7-4d56-91e0-a415030eff38' => 'Qualifying 09/24 15:50 SRF3',
+  '9ac6e0ac-e527-4ee5-932d-1011f12497ae' => 'Qualifying 09/24 15:50 SRF',
+  '4ef53020-5bae-4191-9aee-5e3587e848db' => 'Qualifying 09/24 16:25 GT3',
+  'dd01415e-84e8-43d7-a2f8-8310704ce43d' => 'Qualifying 09/24 16:25 STU',
+  '2101b6d4-5a2f-43b0-aa6f-b1b25904817d' => 'Qualifying 09/24 16:25 T2',
+  '0e6d867a-bb84-48bc-996a-fabe4f64aa25' => 'Qualifying 09/24 17:00 EP',
+  'fda0d33d-ecec-455c-b414-328238683c8d' => 'Qualifying 09/24 17:00 GTL',
+  '084d371c-ea2b-4076-906d-7d81c67ad142' => 'Race 09/25 09:00 GT2',
+  '82e8445f-4840-456b-b25b-a0764aba5dc0' => 'Race 09/25 09:55 FM',
+  '18ea2fb0-88a5-470e-8721-2825e1fad1fe' => 'Race 09/25 10:50 T4',
+  'ef1b90a9-1b7a-42e3-997b-66fc1f567230' => 'Race 09/25 11:45 GT1',
+  'b5cf0b65-d233-4fbc-9af6-d5d396f7ee41' => 'Race 09/25 13:30 HP',
+  '77f51be3-887b-4f1a-ae0b-5a9bcc985d63' => 'Race 09/25 14:25 P2',
+  '8abd4587-b546-4e75-a1ff-c7d04e3ce619' => 'Race 09/25 15:20 F5',
+  '29f86376-8e79-470f-89f4-4ddec93db9bb' => 'Race 09/25 16:15 STU',
+  '671a8a51-377f-4c3d-a248-1124a6f62ae7' => 'Race 09/25 17:10 B-Spec',
+  'd91f27a0-7768-4e83-ae5e-747e1085071c' => 'Race 09/25 19:30 SM',
+  'bebf02fd-d2ac-4798-b88e-4c88d4dc00d3' => 'Race 09/26 08:30 AS',
+  '74dabd35-37ac-457d-98a0-a1832460c6fe' => 'Race 09/26 09:25 FA',
+  '27adbc26-57a0-40d2-8a4a-206820ccc424' => 'Race 09/26 10:20 STL',
+  '802fa9a7-4d35-4174-94c6-12b48473b31c' => 'Race 09/26 11:15 FB',
+  'b38cd0a6-4685-4fea-9817-00ac6339f011' => 'Race 09/26 13:00 SRF3',
+  'e02bb5b8-e105-4a04-8880-77d29bebff56' => 'Race 09/26 13:55 FP',
+  '766633f0-6aaa-4778-93bb-3ee36fd497c5' => 'Race 09/26 14:50 T1',
+  '7b022dcc-841e-450c-9983-c82f82311811' => 'Race 09/26 15:45 FV',
+  'b86a0d0b-e81c-4efb-a488-062f109503a6' => 'Race 09/26 16:40 GTL',
+  'ae543dd7-08f8-4ce3-9f89-deb460c2158b' => 'Race 09/27 08:30 T2',
+  'fc516e86-676c-4961-9585-a6c5dfe7c06c' => 'Race 09/27 08:30 T3',
+  'efd56097-52ea-4f2b-a839-85eb9dc4a9e9' => 'Race 09/27 09:25 FC',
+  '74c4f24c-e4fa-4daa-a398-68aee0facf5d' => 'Race 09/27 10:20 GT3',
+  '7afb4943-33bc-429e-8038-95c4e9a1dec2' => 'Race 09/27 11:15 SRF',
+  '83a9058e-c954-44f2-964a-30962e8a5eda' => 'Race 09/27 13:00 FF',
+  'c1a4ff14-cc77-4c01-baa5-f867265e4e74' => 'Race 09/27 13:55 EP',
+  '32ce415d-9cd0-4e15-b10f-b34f9f3d056f' => 'Race 09/27 14:50 FE',
+  '322ffb0b-565d-433b-8903-83b9e5324a47' => 'Race 09/27 15:45 P1',
+);
+
+sub usage  {
+  print STDERR @_, "\n" if @_;
+  print <<'EOF';
+Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-o outdir] [-p printer]
+                 [-rm] [file]
+       actionmon [-dvx] [-H host] [-U user] [-P pass] [-o outdir] [-p printer]
+                 -u [-f] act_no...
+       actionmon -h
+  -d  Debug
+  -h  This help message
+  -x  Fetch data file only
+  -v  Verbose action list
+
+  -r  Print a summary report
+  -m  Continually monitor the action system
+  -u  Update specified actions...
+      with -x, fetch action detail file(s) only
+      with -f, force replace/reprint of existing action
+
+  -H  action system server host
+  -U  action system userid
+  -P  action system password
+  -o  Output directory [$OutDir]
+  -p  Print to specified printer
+
+EOF
+  exit !!@_;
+}
+
+sub parse_args () {
+  my %opts;
+
+  getopts('dfhmruvxo:p:H:U:P:', \%opts) or usage("Invalid option!");
+  usage()    if $opts{h};
+  $DEBUG++   if $opts{d};
+  $VERBOSE++ if $opts{v};
+  $GETONLY++ if $opts{x};
+  $REPORT++  if $opts{r};
+  $MONITOR++ if $opts{m};
+  $UPDATE++  if $opts{u};
+  $FORCE++   if $opts{f};
+
+  $OutDir   = $opts{o} if defined $opts{o};
+  $Printer  = $opts{p} if defined $opts{p};
+  $SERVER   = $opts{H} if defined $opts{H};
+  $USERID   = $opts{U} if defined $opts{U};
+  $PASSWD   = $opts{P} if defined $opts{P};
+
+  $URLBase  = "http://$SERVER/racecontrol/";
+  $LoginURL = $URLBase . 'Login.aspx';
+  $ListURL  = $URLBase . 'Actions.aspx';
+  $GetURL   = $URLBase . 'GetAction.aspx?ActionNum=';
+}
+
+
+sub process_form ($) {
+  my($text) = @_;
+
+  %FormInputs = ();
+  my $P = new HTML::Parser(start_h => [ sub {
+        my($attrs) = @_;
+        $FormInputs{$$attrs{name}} = $$attrs{value};
+    }, "attr"]);
+
+  $P->parse($text);
+}
+
+
+sub submit_form ($) {
+  my($url) = @_;
+
+  my $req = new HTTP::Request(POST => $url);
+  $req->content_type('application/x-www-form-urlencoded');
+  $req->content(join('&',
+      map($_ . '=' . uri_escape($FormInputs{$_}), keys %FormInputs)));
+  my $res = $UA->request($req);
+  die $res->status_line . "\n" unless $res->is_success;
+  $res->content;
+}
+
+
+sub parse_action ($;$) {
+  my($text, $update) = @_;
+  my(@actions, $action, $sfield, $field, $ftext);
+
+  if (defined($update)) {
+    @actions = ($action = $update);
+  }
+
+  my $P = new HTML::Parser(
+    start_h => [ sub {
+        my($tag, $attrs) = @_;
+
+        if (!defined($update) && $tag eq 'tr' &&
+          ($$attrs{class} eq 'rgRow' || $$attrs{class} eq 'rgAltRow')) {
+          my $rownum = $$attrs{id};
+          $rownum =~ s/.*_//;
+          $action = { _rownum => $rownum };
+          unshift(@actions, $action);
+
+        } elsif ($tag eq 'span' && $$attrs{id} =~ /RadGrid.*_ctl\d+_/) {
+          $field = $';
+          $field =~ s/^EditFormControl_//;
+          $field =~ s/Label$//;
+          $field =~ s/_displayonly$//;
+          $ftext = undef;
+
+        } elsif ($tag eq 'span' && $update) {
+          $field = $$attrs{id};
+          $ftext = undef;
+
+        } elsif ($tag eq 'select' && $$attrs{id} =~ /RadGrid.*_ctl\d+_/) {
+          $sfield = $';
+          $sfield =~ s/^EditFormControl_//;
+          $sfield =~ s/Label$//;
+          $sfield =~ s/_displayonly$//;
+          if ($sfield eq 'act_cls_key') { $sfield = '_session' }
+
+        } elsif ($tag eq 'option' && defined $sfield && $$attrs{selected}) {
+          $field = $sfield;
+          $ftext = undef;
+
+        } elsif ($tag eq 'br') {
+          $ftext .= "\n";
+        }
+      }, "tagname,attr" ],
+    end_h => [ sub {
+        my($tag) = @_;
+        $ftext =~ s/^\s*//;
+        $ftext =~ s/\s*$//;
+        if (($tag eq 'span' || $tag eq 'option') && defined($field)) {
+          if ($ftext ne '' || $$action{$field} eq '') {
+            $$action{$field} = $ftext;
+          }
+
+        } elsif ($tag eq 'td' && defined($action)
+          && !exists($$action{_act_key})) {
+          $$action{_act_key} = $ftext;
+
+        } elsif ($tag eq 'td' && defined($action)
+          && !exists($$action{_cls_key})) {
+          $$action{_cls_key} = $ftext;
+
+        } elsif ($tag eq 'select') {
+          $sfield = undef;
+        }
+
+        if ($tag ne 'br') {
+          $field = undef;
+          $ftext = undef;
+        }
+      }, "tagname" ],
+    text_h => [ sub { $ftext .= $_[0] }, "dtext" ],
+  );
+
+  $P->parse($text);
+  @actions;
+}
+
+
+#sub get_action_detail ($$$) {
+#  my($aid, $rownum, $cls_key) = @_;
+#  my $path = "/tmp/a$aid.html";
+#
+#  if (-f $path) {
+#    my $F = new IO::File($path, O_RDONLY) or die "$path: $!\n";
+#    my $text = join('', <$F>);
+#    $F->close;
+#    return $text;
+#  }
+#  return undef;
+#}
+
+
+sub get_action_detail ($$$) {
+  my($aid, $rownum, $cls_key) = @_;
+
+  my $req = new HTTP::Request(GET => $GetURL . $aid);
+  my $res = $UA->request($req);
+  die $res->status_line . "\n" unless $res->is_success;
+  return $res->content;
+}
+
+
+sub make_report ($$$) {
+  my($template, $out, $fields) = @_;
+
+  $template =~ s/\@(\w+)\@/$$fields{$1}/g;
+  my $F = new IO::File("$out.new", O_RDWR|O_CREAT|O_TRUNC, 0666)
+    or die "$out.new: $!\n";
+  print $F $template;
+  $F->close;
+  rename("$out.new", $out);
+}
+
+
+sub process_actions ($) {
+  my($text) = @_;
+  my(@actions, $report, $summary, $mreport, $count);
+
+  my $start = strftime("%b %d %H:%M", localtime(time));
+
+  process_form($text);
+  @actions = parse_action($text);
+
+  foreach my $a (@actions) {
+    my $aid = $$a{act_number};
+    my $path = "$OutDir/$aid.ps";
+    my $stamp = strftime("%b %d %H:%M", localtime(time));
+
+    if ($UPDATE) {
+      #print "$aid / ", join(' ', @ARGV), "\n";
+      next unless grep($aid == $_, @ARGV);
+    } else {
+      print "$stamp DUP $aid\n" if $MONITOR && $VERBOSE && -f $path;
+      next if -f $path;
+    }
+
+    # This will get overwritten with a longer form in the detail page
+    $$a{_short_desc} = $$a{act_description};
+
+    my $atext = get_action_detail($aid, $$a{_rownum}, $$a{_cls_key});
+    if ($GETONLY) {
+      print $atext;
+      next if $UPDATE;
+    }
+    parse_action($atext, $a);
+
+    $$a{_session} = $ClassKey{$$a{act_cls_key}} if $$a{_session} eq '';
+    ($$a{_date}, $$a{_time}) = split(' ', $$a{act_datetime});
+    if    ($$a{act_type} eq 'CSA')     { $$a{_auth} = 'Chief Steward' }
+    elsif ($$a{act_type} eq 'RFA')     { $$a{_auth} = 'SOM'           }
+    elsif ($$a{act_type} eq 'Protest') { $$a{_auth} = 'SOM'           }
+    else                               { $$a{_auth} = $$a{act_type}   }
+
+    # The distinction between protestor and protestee is meaningless to us
+    # because only the former is normally filled in except on a protest
+    # and because on a protest or appeal, either one could be affected.
+    # Further, either of these fields may contain multiple entries!
+    # So for our purpose, consolidate into lists of cars, classes, and
+    # drivers.
+
+    my @cars    = (split(m{\n}m, $$a{protestorCar}),
+                   split(m{\n}m, $$a{protesteeCar}));
+    my @classes = (split(m{\n}m, $$a{protestorClass}),
+                   split(m{\n}m, $$a{protesteeClass}));
+    my @drivers = (split(m{\n}m, $$a{protestor}),
+                   split(m{\n}m, $$a{protestee}));
+    my @entries = map([ $cars[$_], $classes[$_], $drivers[$_] ], 0.. $#cars);
+    $$a{_entries_split} = [ @entries ];
+    $$a{_entries_full}  = [ map("#$$_[0] $$_[1] $$_[2]", @entries) ];
+    $$a{_entries_brief} = join(', ', map("#$$_[0] $$_[1]", @entries));
+
+    if (@entries) {
+      foreach (@{$$a{_entries_full}}) {
+        $$a{__entries__} .= "() ($_) Field newline\n";
+      }
+      $$a{__entries__} =~ s/^\(\)/(Car(s))/;
+    } else {
+      $$a{__entries__} = "(Car(s)) ((none listed)) Field newline\n";
+    }
+
+    my $desc = wrap('', '', $$a{act_description});
+    $desc =~ s/\n*$//;
+    foreach (split(/\n/, $desc)) {
+      $$a{__details__} .= "() ($_) Field newline\n";
+    }
+    $$a{__details__} =~ s/^\(\)/(Details)/;
+
+    $report = sprintf("#%3d %-5s %-5s %-7s %s\n  %s\n",
+      $$a{act_number}, $$a{_date}, $$a{_time}, $$a{act_type},
+      @entries > 1 ? $$a{_entries_brief} : $$a{_entries_full}[0],
+      $$a{_short_desc});
+
+    if (!$UPDATE && (
+        $$a{act_number} eq '' || !$$a{act_datetime} ||
+        !$$a{act_type} || !$$a{act_initiated_by} || !@entries)) {
+      $report .= "  NOT READY\n";
+      $mreport .= "$stamp $report";
+      print $report if $VERBOSE;
+      next;
+    }
+
+    $summary .= $report;
+    $mreport .= "$stamp $report";
+    print $report if $VERBOSE;
+    $count++;
+
+    $report = sprintf("  CS:%-3s   SOM:%-3s   COA:%-3s   HOLD:%-3s   REMOVE:%s\n",
+      $$a{CsAcked}, $$a{SomComplete}, $$a{CoaComplete}, $$a{HoldResults},
+      $$a{act_delete_flag} ? "YES" : "NO");
+
+    $report .= "  $$a{_session}\n";
+    $report .= "  $$a{act_tech_penalty}\n" if $$a{act_tech_penalty};
+    $report .= "  per $$a{_auth} ($$a{act_gcr_section})\n";
+    $report =~ s/per  \(/\(/;
+    $report =~ s/\n\s+\(\)\n\Z/\n/;
+    $summary .= $report;
+    print $report if $VERBOSE;
+
+    $summary .= "\n";
+    print "\n" if $VERBOSE;
+
+    if ($DEBUG) {
+      print STDERR "Action $aid:\n";
+      print STDERR map(sprintf("  %-20s  %s\n", "$_:", $$a{$_}), sort keys $a);
+      print STDERR "\n";
+    }
+
+    if ($FORCE || ! -f $path) {
+      make_report($Template, $path, $a);
+      system ('lp', "-d$Printer", $path) if $Printer;
+    }
+  }
+
+
+  if ($MONITOR) {
+    my $done = strftime("%b %d %H:%M", localtime(time));
+    print $mreport unless $VERBOSE;
+    printf "%s -> %s %d actions\n", $start, $done, $count;
+  }
+  if ($REPORT && $Printer && $summary) {
+    # Print a summary report
+    my $P = new IO::Pipe;
+    $P->writer('lp', "-d$Printer") or die "lp: $!\n";
+    print $P ' ' x 25, "*** ACTION SUMMARY REPORT ***\n";
+    print $P $summary;
+    $P->close;
+  }
+}
+
+
+sub get_data () {
+  my $req = new HTTP::Request(GET => $ListURL);
+  my $res = $UA->request($req);
+  die $res->status_line . "\n" unless $res->is_success;
+  my $text = $res->content;
+
+  if ($text =~ /type="password"/) {
+    process_form($res->content);
+    foreach (grep(/userid/i,   keys %FormInputs)) { $FormInputs{$_} = $USERID }
+    foreach (grep(/password/i, keys %FormInputs)) { $FormInputs{$_} = $PASSWD }
+    $text = submit_form($LoginURL);
+  }
+
+  return $text;
+}
+
+parse_args;
+
+
+## Fetch the data file
+$UA = new LWP::UserAgent;
+$UA->cookie_jar( {} );
+push @{ $UA->requests_redirectable }, 'POST';
+$UA->show_progress(1);
+
+if ($UPDATE) {
+  process_actions(get_data());
+} elsif ($GETONLY) {
+  print get_data();
+} elsif (@ARGV) {
+  process_actions(join('', <>));
+} elsif ($MONITOR) {
+  while (1) {
+    process_actions(get_data());
+    sleep(30);
+  }
+} else {
+  process_actions(get_data());
+}
+
+__DATA__
+%!PS-Adobe-3.0
+%%Creator: changemon
+%%DocumentNeededResources: font Helvetica-Bold
+%%Pages: 1
+%%BeginProlog
+/inch {72 mul} def
+
+/doFont { findfont exch scalefont setfont } def
+%             size face       
+/TitleFont  {   18 /Helvetica-Bold  doFont } def
+/LabelFont  {   11 /Helvetica-Bold  doFont } def
+/FieldFont  {   11 /Helvetica       doFont } def
+
+/newline { /vpos vpos 0.34 inch sub def } def
+/Field { 
+  % Label Value
+  LabelFont 2.25 inch vpos moveto show
+  FieldFont 0.75 inch vpos moveto show
+} def
+/Field2 { 
+  % Label Value
+  LabelFont 6.00 inch vpos moveto show
+  FieldFont 4.50 inch vpos moveto show
+} def
+
+%%EndProlog
+%%BeginSetup
+%%IncludeResource: font Helvetica-Bold
+%%EndSetup
+%%Page: 1 1
+
+% Page Title
+TitleFont
+(ACTION)
+dup stringwidth pop
+8.5 inch exch sub 2 div
+9.75 inch 
+moveto show
+
+/vpos 9.10 inch def
+(Action Number)       (@act_number@)       Field
+(Received)            (@act_datetime@)     Field2 newline
+(Type)                (@act_type@)         Field
+(Initiated By)        (@act_initiated_by@) Field2 newline
+(Session)             ()                   Field  newline
+@__entries__@
+(Penalty)             (@act_tech_penalty@) Field  newline
+(GCR/Supp Ref.)       (@act_gcr_section@)  Field  newline
+(By order of)         (@_auth@)            Field  newline
+@__details__@
+
+(Cleared)        2.25 inch 3.19 inch moveto show
+(Withdrawn)      2.25 inch 2.96 inch moveto show
+3.8 inch 3.19 inch moveto 4.5 inch 3.19 inch lineto stroke
+3.8 inch 2.96 inch moveto 4.5 inch 2.96 inch lineto stroke
+
+(Orbits A)       2.25 inch 2.50 inch moveto show (by) 4.75 inch 2.50 inch moveto show
+(Orbits B)       2.25 inch 2.27 inch moveto show (by) 4.75 inch 2.27 inch moveto show
+(Orbits C)       2.25 inch 2.04 inch moveto show (by) 4.75 inch 2.04 inch moveto show
+(Excel database) 2.25 inch 1.81 inch moveto show (by) 4.75 inch 1.81 inch moveto show
+
+3.8 inch 2.50 inch moveto 4.5 inch 2.50 inch lineto stroke
+3.8 inch 2.27 inch moveto 4.5 inch 2.27 inch lineto stroke
+3.8 inch 2.04 inch moveto 4.5 inch 2.04 inch lineto stroke
+3.8 inch 1.81 inch moveto 4.5 inch 1.81 inch lineto stroke
+
+5.25 inch 2.50 inch moveto 6.625 inch 2.50 inch lineto stroke
+5.25 inch 2.27 inch moveto 6.625 inch 2.27 inch lineto stroke
+5.25 inch 2.04 inch moveto 6.625 inch 2.04 inch lineto stroke
+5.25 inch 1.81 inch moveto 6.625 inch 1.81 inch lineto stroke
+
+showpage
+%%Trailer
+%%Pages: 1
