@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+
+use Time::Local;
+
+print "<TRACKRECORDS>\r\n";
+while (<>) {
+  #($class,$driver,$car,$time,$date) = split(/,/);
+  ($class,$time,$speed,$date,$driver,$home,$car) = split(/,/);
+  next unless $time > 0;
+  ($MM,$DD,$YYYY) = split(m#/#, $date);
+
+  # Kludge - Les's records sometimes have extra stuff after the class
+  $class =~ s/[*\s]+//g;
+
+  # Kludge - Orbits needs exactly H:MM:SS.sss
+  # Get the wrong number of digits in the minutes or seconds, and it
+  # doesn't import the data.  The following assumes we are being given
+  # just MM:SS.sss, with 1 or 2 digits in the minutes.  Really, we
+  # should parse it and reformat it correctly.
+  if ($time =~ /^[0-9][0-9]/) { $LT = "0:$time" }
+  else                        { $LT = "0:0$time" }
+
+  $TS = timelocal(0,0,0,$DD,$MM-1,$YYYY) . '000000';
+
+  print qq#<RECORD class="$class" comment="$driver" laptime="$LT" date="$TS"/>\r\n#;
+}
+print "</TRACKRECORDS>\r\n";

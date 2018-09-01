@@ -1,0 +1,136 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+use strict;
+use vars qw(@Cols @Sections %NotSections $Threshold %Opts);
+use vars qw($Name @Laps %Counts %Times);
+
+$Threshold = 0.10;
+%NotSections = map(($_ => 1),
+  "Time of Day","Lap","LeadLap","Lap Tm","Speed");
+
+sub usage () {
+  print "usage: $0 [-dv] laptimes.csv\n";
+  print "       $0 -h\n";
+  print "  -d      debugging output\n";
+  print "  -h      show this help message\n";
+  print "  -t xx   set threshold to xx%\n";
+  print "  -v      verbose\n";
+  exit 1;
+}
+
+getopts('dht:v', \%Opts) or usage;
+usage if $Opts{'h'};
+$Threshold = $Opts{'t'} / 100.0 if $Opts{'t'} != 0;
+
+sub convert_time ($) {
+  my($text) = @_;
+  my($val);
+
+  return undef if $text eq '' || $text =~ /[^0-9.:]/;
+  while ($text =~ s/^(\d+)://) { $val = ($val + $1) * 60.0 }
+  $val += $text;
+}
+
+sub process_lap ($) {
+  my($info) = @_;
+
+  push(@Laps, $info);
+  foreach (@Sections) {
+    my $t = convert_time($$info{$_ // 'Lap Tm'});
+    next unless $t > 0;
+    $Counts{$_}++;
+    $Times{$_} += $t;
+  }
+}
+
+sub report () {
+  my(%avg, %low, %high);
+  my(@messages);
+  my $fmt = join(' ', '%3d', ' %7.3f' x @Sections) . "\n";
+
+  foreach (@Sections) {
+    next unless $Counts{$_};
+    $avg{$_}  = $Times{$_} / $Counts{$_};
+    $low{$_}  = $avg{$_} * (1.0 - $Threshold);
+    $high{$_} = $avg{$_} * (1.0 + $Threshold);
+  }
+
+  if ($Opts{'d'}) {
+    print "\n>>> $Name <<<\n";
+    print STDERR "Section    #    Total     Low     Avg    High\n";
+    print STDERR "======== === ======== ======= ======= =======\n";
+    foreach (@Sections) {
+      printf STDERR ("%-8s %3d %8.3f %7.3f %7.3f %7.3f\n", $_ // 'Total',
+        $Counts{$_}, $Times{$_}, $low{$_}, $avg{$_}, $high{$_});
+    }
+    print STDERR join(' ', 'Lap',
+      map(sprintf("%8s", $_ // 'Total'), @Sections)), "\n";
+
+    print STDERR join(' ', '===', ('========') x @Sections) . "\n";
+  }
+
+  foreach my $info (@Laps) {
+    my(@problems);
+    if ($Opts{'d'}) {
+      printf STDERR ($fmt, $$info{Lap},
+        map(convert_time($$info{$_ // 'Lap Tm'}), @Sections));
+    }
+    foreach (@Sections) {
+      next unless $Counts{$_};
+      my $t = convert_time($$info{$_ // 'Lap Tm'});
+      next unless $t > 0;
+      if ($t < $low{$_}) {
+        push(@problems, sprintf("%s low (%7.3f)", $_ // 'lap', $t));
+      } elsif ($t > $high{$_}) {
+        push(@problems, sprintf("%s high (%7.3f)", $_ // 'lap', $t));
+      }
+    }
+    if (@problems) {
+      my $text = "lap $$info{Lap}";
+      $text .= " (lead $$info{LeadLap})" if exists $$info{LeadLap};
+      push(@messages, $text . ": ". join(', ', @problems));
+    }
+  }
+
+  if (@messages) {
+    print "WARNING $Name\n", map("  $_\n", @messages);
+  } elsif ($Opts{'v'}) {
+    print "CLEAN   $Name\n";
+  }
+}
+
+while (<>) {
+  my $text = $_;
+  $text =~ s/\s*$//;
+
+  # Handle compettor headers.  These show up as a row with one column
+  # containing the car number, competitor, and class, separated by dashes.
+  # It may or may not be quoted, and is pretty much the only place where
+  # we might see unexpected commas.  But...  they'll never be in the car
+  # number part, so if this looks like it starts with a number and dash,
+  # then it's a competitor.
+  if ($text =~ /^"?[0-9]+\s*-/) {
+    die "Competitor found when expecting column headers!\n" unless @Cols;
+    $text =~ s/^"(.*)"$/$1/;
+    report if @Laps;
+    $Name = $text;
+    @Laps = %Counts = %Times = ();
+    next;
+  }
+
+  # Split into fields and strip quoting.
+  # If we don't yet have column headers, get them from this row.
+  my @fields = split(/,/, $text);
+  map(s/^"(.*)"$/$1/, @fields);
+  if (!@Cols) {
+    @Cols = @fields;
+    @Sections = (undef, grep(!$NotSections{$_}, @fields));
+    next;
+  }
+
+  my $info = { map(($Cols[$_] => $fields[$_]), 0 .. @fields-1) };
+  process_lap($info);
+}
+
+report if @Laps;

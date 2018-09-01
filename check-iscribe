@@ -1,0 +1,28 @@
+#!/usr/bin/perl
+
+%dests = qw(
+  10.30.43.10   staff
+  10.30.7.115   CSC
+  10.30.7.123   Tech
+  10.30.7.91    Media
+  10.30.8.9     Driver_Info
+  192.168.10.42 Results
+ #10.30.143.11  Race_Control
+);
+
+while (<>) {
+  next unless /(\d+).\s*successfully printed to destination broadcast:([0-9.]+):raw/;
+  $jobs[$1]{$2}++;
+}
+
+foreach my $job (0 .. @jobs-1) {
+  my @err = ();
+  next unless ref($jobs[$job]);
+  foreach my $dest (keys %dests) {
+    next if $dest =~ /^#/;
+    push(@err, $dest) unless $jobs[$job]{$dest};
+  }
+  foreach (@err) {
+    printf("%3d %-15s %s\n", $job, $_, $dests{$_});
+  }
+}

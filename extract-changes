@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+while (<>) {
+  if (s{.*<style}{<style}) {
+    $text .= $_;
+    last;
+  }
+}
+while (<>) {
+  if (s{</style>.*}{</style>}) {
+    $text .= $_;
+    last;
+  }
+  $text .= $_;
+}
+print $text;
+$text = '';
+
+while (<>) {
+  if (s{.*<\?xml}{<\?xml}) {
+    $text .= $_;
+    last;
+  }
+}
+while (<>) {
+  $text .= $_;
+  last if m{\</table\>};
+}
+
+$text =~ s{<table }{<table frame=all rules=all borders=1 };
+
+$hdrs = join('', map("<th>$_</th>", '-A-', '-B-', '-C-', 'Excel'));
+$text =~ s{<tr><th>(.*?)</tr>}{};
+$hdrs = "<tr>$hdrs<th>$1</tr>";
+
+$text =~ s{<tr style}{<tr style="page-break-before: always;"><td>&nbsp;</td></tr>$hdrs<tr style}g;
+$text =~ s{<td colspan="4">}{<td colspan="8">}g;
+$text =~ s{<td style="padding-top:10px;">}{<td colspan="4"></td><td>}g;
+
+$text =~ s{<a .*?</a>}{}gs;
+$text =~ s{</tr>}{</tr>\n}g;
+print $text;

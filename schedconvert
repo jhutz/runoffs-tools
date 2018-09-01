@@ -1,0 +1,317 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+use IO::File;
+use POSIX ();
+use Time::Local;
+use strict;
+
+our %Opts;
+our $Practice   = undef; # Date of all practice sessions
+our %ClassGroup = ();  # Map class name to its run group
+our %ClassQuals = ();  # Map class name to list of qualifying dates
+our %ClassRaces = ();  # Map class name to race date
+our %GroupQuals = ();  # Map qual group name to list of qualifying dates
+our %GroupRaces = ();  # Map race group name to race date
+our %RaceGroups = ();  # Map qual group name to race group names
+our %OrbitsGroups = (); # Map Orbits group name to qual groups
+our $QualTime;
+our $RaceTime;
+our $RaceLaps;
+
+our %Categories = (
+  Form => [qw[FA FB FC FE FF FM F5 P1 P1]],
+  Prod => [qw[EP FP HP GTL]],
+  Show => [qw[AS B-Spec STL STU T1 T2 T3 T4]],
+  GT   => [qw[GT1 GT2 GT3]],
+);
+our %ClassCategory = ();
+foreach my $cat (keys %Categories) {
+  map($ClassCategory{$_} = $cat, @{$Categories{$cat}});
+}
+
+our %Notes = (
+  'FC' => 'All engines Ford',
+  'FE' => 'All engines Mazda',
+  'FV' => 'All engines Volkswagen',
+  'S2' => 'All engines Ford',
+);
+
+our $re_day = qr{(?i:mon|tue|wed|thu(?:rs)?|fri|sat|sun)\s+(\d+)/(\d+)};
+
+sub unix2excel ($) {
+  my($unix) = @_;
+
+  # Don't change empty values
+  return $unix if $unix eq '';
+
+  # UNIX counts seconds, with 0 being 1-Jan-1970 UTC
+  # Excel counts days, with 1 being 1-Jan-1900 Local time
+
+  # Before we do anything else, we have to translate to use a local
+  # time epoch, rather than the UTC epoch all sane-thinking people use.
+  my $local = timegm(localtime($unix));
+  
+  # Now.  2208988800 is the number of seconds between the two epoch dates.
+  # Then we have to add a day to account for Excel calling its epoch "1".
+  # And we have to add another day to work around Excel's bug-for-bug
+  # compatibility with Lotus 1-2-3, which incorrectly treated 1900 as
+  # being a leap year.
+  return ($local + 2208988800 + 86400 + 86400) / 86400;
+}
+
+getopts('hs:x:z:', \%Opts);
+if ($Opts{'h'}) {
+  print <<'EOF';
+usage: schedconvert [opts] < input
+       schedconvert -h
+
+  -h        Print help message
+  -s PATH   Output CSV schedule table in PATH (default schedule.csv)
+  -x PATH   Output Orbits XML run data in PATH (default schedule.xml)
+  -z ZONE   Interpret schedule data in ZONE (default local timezone)
+EOF
+  exit 0;
+}
+$Opts{'s'} ||= 'schedule.csv';
+$Opts{'x'} ||= 'schedule.xml';
+if (exists($Opts{'z'})) {
+  $ENV{TZ} = $Opts{'z'};
+  POSIX::tzset();
+}
+
+
+# Process the input
+{
+  my $mode = 'Q';
+  my $year = (localtime(time))[5] + 1900;
+  my @days = ();
+  while (<>) {
+    if (/^\s*NATIONAL CHAMPIONSHIP RACES/i) {
+      $mode = 'R';
+      @days = ();
+    }
+    if (/\b(\d+)\s+LAPS?\b/) {
+      $RaceLaps = $1 if $mode eq 'R' && !defined($RaceLaps);
+    }
+    if (/\b(\d+)\s+MIN\b/) {
+      $QualTime = $1 if $mode eq 'Q' && !defined($QualTime);
+      $RaceTime = $1 if $mode eq 'R' && !defined($RaceTime);
+    }
+
+    # Look to see if we're starting a new set of days
+    # There is a day/date at the top of each column.
+    my @newdays = ();
+    while (s/^\s*$re_day//) {
+      push(@newdays, [$1, $2]);
+    }
+    if (@newdays > 1) {
+      @days = @newdays;
+      if (!defined($Practice)) {
+        $Practice = timelocal(0,0,0, $days[0][1]-1, $days[0][0]-1, $year);
+      }
+      next;
+    }
+
+    # OK; look for something resembling a schedule row
+    next unless @days && s/^\s*(\d+):(\d+)\s*//;
+    my ($hh, $mm) = ($1, $2);
+    my @groups = split;
+
+    # Kludge!  Skip not-real "sessions" and garbage times that
+    # appear in the events column to the right of the schedule.
+    next if $groups[0] =~ /^(anthem|lunch|[ap]m\b)/i;
+
+    $hh += 12 if $hh < 8;
+    if (@groups > @days) { splice(@groups,scalar(@days)) }
+    if (@groups < @days) { warn "WARNING:$.: not enough columns at $hh:$mm\n" }
+    foreach my $i (0 .. @groups-1) {
+      my $when = timelocal(0, $mm, $hh, $days[$i][1], $days[$i][0]-1, $year);
+      my $group = $groups[$i];
+      my @classes = split(m#/#, $group);
+
+      # Kludge!  No one seems to agree on the name of this class!
+      map(s/^(bs|bspec|b-spec)$/B-Spec/i, @classes);
+      $group = join('/', @classes);
+
+      if ($mode eq 'Q') {
+        $GroupQuals{$group} ||= [];
+        $GroupQuals{$group}[$i] = $when;
+        foreach my $class (@classes) {
+          $ClassCategory{$class} = $class unless exists $ClassCategory{$class};
+          if (!exists($ClassGroup{$class})) {
+            $ClassGroup{$class} = $group;
+          } elsif ($ClassGroup{$class} ne $group) {
+            warn "WARNING:$.: Class $class changed qualifying groups!\n";
+          }
+          $ClassQuals{$class} ||= [];
+          $ClassQuals{$class}[$i] = $when;
+        }
+        $OrbitsGroups{$ClassCategory{$classes[0]}}{$group} = 1;
+
+      } elsif ($mode eq 'R') {
+        my $qgroup = $ClassGroup{$classes[0]};
+        $RaceGroups{$qgroup} ||= [];
+        push(@{$RaceGroups{$qgroup}}, $group);
+        $GroupRaces{$group} = $when;
+        foreach my $class (@classes) {
+          $ClassRaces{$class} = $when;
+          if (!exists($ClassGroup{$class})) {
+            warn "WARNING:$.: Class $class not in any qualifying group!\n";
+          } elsif (exists $ClassGroup{$classes[0]}
+            && $ClassGroup{$classes[0]} ne $ClassGroup{$class}) {
+            warn ("WARNING:$.: Classes $classes[0] and $class "
+              ."race together but do not qualify together\n");
+          }
+        }
+
+      } else {
+        die "Unknown mode $mode";
+      }
+    }
+  }
+}
+
+printf("%-10s%02d/%02d ALL DAY\n", 'PRACTICE',
+  (localtime($Practice))[4] + 1, (localtime($Practice))[3]);
+
+# Reproduce the qualifying schedule
+{
+  my %times;
+  my %dates;
+  my %hours;
+  foreach (values %ClassQuals) {
+    $times{$_}++ foreach (@$_);
+  }
+
+  foreach (keys %times) {
+    my($ss, $mm, $hh, $DD, $MM, $YY) = localtime($_);
+    my $date = sprintf("%02d/%02d", $MM+1, $DD);
+    my $hour = sprintf("%02d:%02d", $hh, $mm);
+    $dates{$date}++;
+    $hours{$hour}{$date} = $_;
+  }
+
+  print "\nQUALIFYING SCHEDULE:\n";
+  print map("          $_", sort keys %dates), "\n";
+  foreach my $hour (sort keys %hours) {
+    my $text = "$hour     ";
+    foreach my $date (sort keys %dates) {
+      $text .= sprintf("%-15s",
+        join('/', sort grep(grep($_ eq $hours{$hour}{$date},
+              @{$ClassQuals{$_}}), keys %ClassQuals)));
+    }
+    $text =~ s/\s*$/\n/;
+    print $text;
+  }
+}
+
+# Reproduce the race schedule
+{
+  my %times;
+  my %dates;
+  my %hours;
+  $times{$_}++ foreach (values %ClassRaces);
+
+  foreach (keys %times) {
+    my($ss, $mm, $hh, $DD, $MM, $YY) = localtime($_);
+    my $date = sprintf("%02d/%02d", $MM+1, $DD);
+    my $hour = sprintf("%02d:%02d", $hh, $mm);
+    $dates{$date}++;
+    $hours{$hour}{$date} = $_;
+  }
+
+  print "\nRACE SCHEDULE:\n";
+  print map("          $_", sort keys %dates), "\n";
+  foreach my $hour (sort keys %hours) {
+    my $text = "$hour     ";
+    foreach my $date (sort keys %dates) {
+      $text .= sprintf("%-15s",
+        join('/', sort grep($ClassRaces{$_} eq $hours{$hour}{$date},
+            keys %ClassRaces)));
+      }
+    $text =~ s/\s*$/\n/;
+    print $text;
+  }
+}
+
+
+# Produce a schedule for the results spreadsheet
+{
+  my $F = new IO::File($Opts{'s'}, O_WRONLY|O_CREAT|O_TRUNC, 0666)
+    or die "$Opts{'s'}: $!\n";
+  foreach my $class (sort keys %ClassGroup) {
+    my @times = @{$ClassQuals{$class}};
+    push(@times, $ClassRaces{$class});
+    push(@times, $Practice);
+    print $F join(',', $class, map(unix2excel($_), @times),
+      $Notes{$class}), "\r\n";
+  }
+  my %groups = map(($_ => 1), grep(m#/#, keys %GroupQuals, keys %GroupRaces));
+  foreach my $group (sort keys %groups) {
+    my @classes = split(m#/#, $group);
+    my @times = @{$ClassQuals{$classes[0]}};
+    push(@times, $GroupRaces{$group});
+    push(@times, $Practice);
+    print $F join(',', qq/"$group"/, map(unix2excel($_), @times), ''), "\r\n";
+  }
+  $F->close;
+}
+
+
+# Produce something we can give to Orbits
+# Everything is done based on qualifying groups
+# If you aren't in a qualifying group, you get no runs!
+{
+  my $F = new IO::File($Opts{'x'}, O_WRONLY|O_CREAT|O_TRUNC, 0666)
+    or die "$Opts{'x'}: $!\n";
+  print $F qq{<groups>\n};
+  foreach my $ogroup (sort keys %OrbitsGroups) {
+    # Emit the group
+    print $F qq{  <group name="$ogroup">\n};
+    print $F qq{    <competitors/>\n};
+    print $F qq{    <runs>\n};
+
+    foreach my $qgroup (sort keys %{$OrbitsGroups{$ogroup}}) {
+
+      # Emit the qualifying sessions for the group
+      foreach my $i (0 .. @{$GroupQuals{$qgroup}}-1) {
+        my($ss,$mm,$hh,$DD,$MM,$YY) = localtime($GroupQuals{$qgroup}[$i]);
+        printf $F (<<"EOF",
+      <run name="%s" shortname="%s"
+           date="%04d-%02d-%02d" time="%02d:%02d:%02d" type="qualify"
+           startmethod="flag" countfirst="none" qualificationtype="none"
+           autofinishmethod="time" autofinishtime="%02d:%02d:00">
+EOF
+          "$qgroup Qualifying " . ($i+1), "Qual " . ($i+1),
+          $YY+1900, $MM+1, $DD, $hh, $mm, 0,
+          $QualTime / 60, $QualTime % 60);
+        print $F qq{        <competitors/>\n};
+        print $F qq{      </run>\n};
+      }
+
+      # Emit the race sessions for all race groups in this group
+      if (exists($RaceGroups{$qgroup})) {
+        foreach my $rgroup (sort @{$RaceGroups{$qgroup}}) {
+          my($ss,$mm,$hh,$DD,$MM,$YY) = localtime($GroupRaces{$rgroup});
+          printf $F (<<"EOF",
+      <run name="%s" shortname="%s"
+           date="%04d-%02d-%02d" time="%02d:%02d:%02d" type="race"
+           startmethod="firstpassing" countfirst="none"
+           autofinishmethod="timeorlaps"
+           autofinishtime="%02d:%02d:00" autofinishlaps="%d">
+EOF
+            "$rgroup Race", "Race",
+            $YY+1900, $MM+1, $DD, $hh, $mm, 0,
+            $RaceTime / 60, $RaceTime % 60, $RaceLaps);
+          print $F qq{        <competitors/>\n};
+          print $F qq{      </run>\n};
+        }
+      }
+    }
+    print $F qq{    </runs>\n};
+    print $F qq{  </group>\n};
+  }
+  print $F qq{</groups>\n};
+  $F->close;
+}

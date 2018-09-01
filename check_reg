@@ -1,0 +1,105 @@
+#!/usr/bin/perl
+
+use strict;
+use vars qw(@Cols %Cols %QualGroup %RaceGroup %Keys %OK_Blank $VERBOSE);
+
+## Columns we have special interest in
+## RHS of these must be filled in with the actual column header
+%Cols = (
+  member => 'Member ID',
+  car    => 'Car #',
+  txno   => 'Transponder',
+  class  => 'Class',
+  first  => 'First',
+  last   => 'Last',
+);
+
+## Columns that are permitted to be blank
+## These must match the actual column header
+%OK_Blank = map(($_ => 1),
+  'Middle', 'Addr 1', 'Addr 2', 'Addr 3', 'Postal Code', 'Email',
+  'Color', 'Sponsor/Team', 'Car Year', 'Engine Make');
+
+# Qualifying Groups (except single classes)
+foreach my $group (qw(STU/T3 EP/GTL F5/FF AS/T1 FC/FE/FM
+  FP/HP GT1/GT2/GT3 FA/FB STL/T2 P1/P2 BSpec/T4)) {
+  foreach my $class (split(/\//, $group)) {
+    $QualGroup{$class} = $group;
+  }
+}
+
+# Race Groups (except single classes and qual groups racing all together)
+foreach my $group (qw(FE/FM)) {
+  foreach my $class (split(/\//, $group)) {
+    $RaceGroup{$class} = $group;
+  }
+}
+
+if ($ARGV[0] eq '-v') {
+  $VERBOSE++;
+  shift @ARGV;
+}
+
+# Read the header
+{
+  $_ = <>;
+  chomp;
+  @Cols = split(/\t/, $_);
+  my %fields = map(($Cols[$_] => $_), 0 .. @Cols-1);
+  foreach (keys %Cols) {
+    $Cols{$_} = $fields{$Cols{$_}};
+  }
+}
+
+# Load the data and look for problems
+my($carno, $class, $name);
+my $format = "%-6s  %3s  %-20.20s  %-25s  %s";
+printf("$format\n", qw(Class Car Name Problem Comment));
+printf("$format\n", map(('=' x $_), qw(6 3 20 25 15)));
+sub problem {
+  my $x = sprintf($format, $class, $carno, $name, join('', @_));
+  $x =~ s/\s*$//;
+  print "$x\n";
+}
+while (<>) {
+  chomp;
+  my @fields = split(/\t/, $_);
+  $carno = $fields[$Cols{car}];
+  $class = $fields[$Cols{class}];
+  $name = join(' ', $fields[$Cols{first}], $fields[$Cols{last}]);
+  my $qgroup = $QualGroup{$class};
+  my $rgroup = $RaceGroup{$class};
+
+
+  foreach my $f (qw(member car txno)) {
+    next unless $fields[$Cols{$f}] ne '';
+    foreach ($class, $qgroup, $rgroup) {
+      next unless defined $_;
+      $Keys{join(':', $_, $f, $fields[$Cols{$f}])}++;
+    }
+  }
+
+  if ($fields[$Cols{member}] =~ /[^0-9_]/) {
+    problem('Strange member #', $fields[$Cols{member}]);
+  }
+  foreach (0 .. @Cols - 1) {
+    if ($fields[$_] !~ /\S/) {
+      next if $OK_Blank{$Cols[$_]};
+      problem('Missing ', $Cols[$_]);
+    } elsif ($fields[$_] eq '0') {
+      next if $_ == $Cols{car};
+      problem($Cols[$_], ' is 0') if $VERBOSE;
+    } elsif ($fields[$_] =~ /,/) {
+      next unless $VERBOSE;
+      problem($Cols[$_], ' contains a comma') if $VERBOSE;
+    }
+  }
+}
+
+print "\nDuplicates:\n";
+print " #  Group         Item      Value            Comment\n";
+print "==  ============  ========  ===============  ==========\n";
+foreach (grep($Keys{$_} > 1, keys %Keys)) {
+  my($group, $field, $value) = 
+  printf("%2d  %-12s  %-8s  %s\n", $Keys{$_}, split(/:/, $_, 3));
+}
