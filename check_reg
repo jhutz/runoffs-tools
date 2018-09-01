@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-use vars qw(@Cols %Cols %QualGroup %RaceGroup %Keys %OK_Blank $VERBOSE);
+use vars qw(@Cols %Cols %OK_Blank %QualGroup %QualSub %RaceGroup %Keys $VERBOSE);
 
 ## Columns we have special interest in
 ## RHS of these must be filled in with the actual column header
@@ -18,14 +18,23 @@ use vars qw(@Cols %Cols %QualGroup %RaceGroup %Keys %OK_Blank $VERBOSE);
 ## These must match the actual column header
 %OK_Blank = map(($_ => 1),
   'Middle', 'Addr 1', 'Addr 2', 'Addr 3', 'Postal Code', 'Email',
-  'Color', 'Sponsor/Team', 'Car Year', 'Engine Make', ''
+  'Color', 'Sponsor/Team', 'Car Year', 'Engine Make', 'Phone'
 );
 
 # Qualifying Groups (except single classes)
-foreach my $group (qw(SRF/SRF3 GT3/STU/T2 EP/GTL F5/FF AS/T1
-  FC/FE/FM B-Spec/T4 FA/FB STL/T3 FP/HP P1/P2 GT1/GT2)) {
-  foreach my $class (split(/\//, $group)) {
-    $QualGroup{$class} = $group;
+foreach my $group (qw(P1//FE/FM GT3//AS T3//SRF FA/FC//T2
+  F5//GTL FF//EP FB//STU GT1/T1//P2 T4/B-Spec)) {
+  if ($group =~ m#//#) {
+    foreach my $sub (split(m#//#, $group)) {
+      next unless $sub =~ m#/#;
+      foreach my $class (split(m#/#, $sub)) {
+        $QualSub{$class} = $sub;
+      }
+    }
+  } else {
+    foreach my $class (split(/\/+/, $group)) {
+      $QualGroup{$class} = $group;
+    }
   }
 }
 
@@ -69,12 +78,13 @@ while (<>) {
   $class = $fields[$Cols{class}];
   $name = join(' ', $fields[$Cols{first}], $fields[$Cols{last}]);
   my $qgroup = $QualGroup{$class};
+  my $qsub   = $QualSub{$class};
   my $rgroup = $RaceGroup{$class};
 
 
   foreach my $f (qw(member car txno)) {
     next unless $fields[$Cols{$f}] ne '';
-    foreach ($class, $qgroup, $rgroup) {
+    foreach ($class, $qgroup, $qsub, $rgroup) {
       next unless defined $_;
       $Keys{join(':', $_, $f, $fields[$Cols{$f}])}++;
     }
@@ -101,6 +111,5 @@ print "\nDuplicates:\n";
 print " #  Group         Item      Value            Comment\n";
 print "==  ============  ========  ===============  ==========\n";
 foreach (grep($Keys{$_} > 1, keys %Keys)) {
-  my($group, $field, $value) = 
   printf("%2d  %-12s  %-8s  %s\n", $Keys{$_}, split(/:/, $_, 3));
 }

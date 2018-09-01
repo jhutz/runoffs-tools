@@ -1,0 +1,421 @@
+#!/usr/bin/perl
+
+use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
+use File::Basename;
+use Getopt::Std;
+use IO::File;
+use IO::Pipe;
+use LWP;
+use POSIX qw(strftime);
+use XML::Parser;
+
+use strict;
+use vars qw($DEBUG $VERBOSE $SENDACK $REPORT $MONITOR $ACKONLY $GETONLY);
+use vars qw($PROG $PROGDIR $OutDir $Template $Printer);
+use vars qw($URLBase $ReqURL $AckURL %FieldMap);
+
+$PROG = File::Spec->rel2abs($0);
+$PROGDIR = dirname($PROG);
+
+$OutDir   = "$PROGDIR/../Changes";
+$Template = join('', <DATA>);
+
+$URLBase = 'https://ams.scca.com/netForum/eweb/DynamicPage.aspx?Site=scca';
+$ReqURL  = $URLBase . '&WebCode=chgxml';
+$AckURL  = $URLBase . '&WebCode=changeack&action=add&r02_reg_key=';
+
+%FieldMap = (
+  'Car #'         => 'car',
+  'Transponder'   => 'tx',
+  'Make'          => 'make',
+  'Make - Other'  => 'makex',
+  'Model'         => 'model',
+  'Model - Other' => 'modelx',
+  'Sponsor'       => 'sponsor',
+  # Class? First/Last Name? Region? Engine?
+);
+
+sub usage  {
+  print STDERR @_, "\n" if @_;
+  print <<'EOF';
+Usage: changemon [-dhvx] [-arm] [-t template] [-o outdir] [-p printer] [file]
+       changemon -A rkey...
+  -d  Debug
+  -h  This help message
+  -x  Fetch data file only
+  -v  Verbose change list
+
+  -A  Acknowledge specified rkeys only (do not process changes)
+  -a  Acknowledge processed changes
+  -r  Print a summary report
+  -m  Continually monitor the change service
+
+  -o  Output directory [$OutDir]
+  -p  Print to specified printer
+
+EOF
+  exit !!@_;
+}
+
+sub parse_args () {
+  my %opts;
+
+  getopts('Aadhmrvo:p:x', \%opts) or usage("Invalid option!");
+  usage()    if $opts{h};
+  $ACKONLY++ if $opts{A};
+  $GETONLY++ if $opts{x};
+  $SENDACK++ if $opts{a};
+  $DEBUG++   if $opts{d};
+  $MONITOR++ if $opts{m};
+  $REPORT++  if $opts{r};
+  $VERBOSE++ if $opts{v};
+
+  $OutDir   = $opts{o} if defined $opts{o};
+  $Printer  = $opts{p} if defined $opts{p};
+}
+
+
+# Extract the contents of an ODS spreadsheet
+sub read_data ($) {
+  my($path) = @_;
+  my($ZipFile, $ZipMem, $text);
+
+  $ZipFile = Archive::Zip->new($path)
+    or die "$path: $!\n";
+  $ZipMem = $ZipFile->memberNamed('content.xml')
+    or die "$path: no content.xml\n";
+  $ZipMem->contents;
+}
+
+
+# Given an array ref describing the content of an XML element, find the
+# first child element with the given tag name.  The input tree should be
+# an array ref representing the content of the element to be searched.
+# This consists of an optional attribute hash followed by a list of
+# tag/content pairs, and is the form used by XML::Parser::Style::Tree.
+#
+# If a child element is found, the return value is an array ref in the
+# same form.  Otherwise, the return value is undef.
+#
+# If the requested tag is '0', then the resulting child, if any, will
+# be a text node, and the return value is a scalar containing the text.
+sub find_child ($$) {
+  my($tree, $tag) = @_;
+
+  #print STDERR "find_child($tag)\n";
+  for (my $i = ref($$tree[0]) eq 'HASH'; $i < @$tree; $i += 2) {
+    #print STDERR "... $$tree[$i]\n";
+    next unless $$tree[$i] eq $tag;
+    return $$tree[$i+1];
+  }
+  undef;
+}
+
+
+# Given an array ref describing the content of an XML element, find all
+# child elements with the given tag name and do some processing on them.
+# The input tree should be of the form required by find_child().
+#
+# For each child element found, the provided callback will be called with
+# $_ set to an array ref describing that element's attributes and children.
+# The final result is a list of the callback's return values.
+sub map_children (&$$) {
+  my($cb, $tree, $tag) = @_;
+  my(@answers);
+
+  for (my $i = ref($$tree[0]) eq 'HASH'; $i < @$tree; $i += 2) {
+    next unless $$tree[$i] eq $tag;
+    $_ = $$tree[$i+1];
+    push(@answers, ($cb->()));
+  }
+  @answers;
+}
+
+
+# Given an array ref describing the content of an XML element, find a
+# descendent node named by the given sequence of tag names.  The input
+# tree and return values take the same form as for find_child().
+sub find_inferior ($@) {
+  my($content, @tags) = @_;
+
+  while (@tags) {
+    my $tag = shift(@tags);
+    return undef unless ref($content) eq 'ARRAY';
+    $content = find_child($content, $tag);
+  }
+  $content;
+}
+
+
+sub sendack ($) {
+  my($rkey) = @_;
+
+  my $req = new HTTP::Request(POST => $AckURL . $rkey);
+  $req->content_type('application/x-www-form-urlencoded');
+  $req->content(join('&', qw(
+      __APPLICATIONPATH=%2FnetForum%2Feweb
+      __EVENTARGUMENT=
+      __EVENTTARGET=Bottom_0
+      __LASTFOCUS=
+      __r02_change_acknowledged_flag=
+      r02_change_acknowledged_flag=on),
+      'r02_reg_key='.$rkey));
+
+  print $req->content if $DEBUG;
+  my $ua  = new LWP::UserAgent;
+  $ua->show_progress(1);
+  my $res = $ua->request($req);
+
+  if (!$res->is_success) {
+    print $res->message, "\n";
+    print $res->content if $DEBUG;
+    die $res->status_line . "\n";
+  }
+  print $res->content if $DEBUG;
+  print "Acknowledged $rkey\n" if $ACKONLY;
+}
+
+
+sub make_form ($$$) {
+  my($template, $out, $fields) = @_;
+
+  $template =~ s/\@(\w+)\@/$$fields{$1}/g;
+  my $F = new IO::File("$out.new", O_RDWR|O_CREAT|O_TRUNC, 0666);
+  print $F $template;
+  $F->close;
+  rename("$out.new", $out);
+}
+
+
+sub process_changes ($) {
+  my($text) = @_;
+  my($report, $summary, $dcount, $tcount);
+  my $start = strftime("%b %d %H:%M", localtime(time));
+
+  if ($text =~ /\<Changes\>/) {
+    ## Extract and process changes
+    $text =~ s{^.*?(\<Changes\>)}{$1}is;
+    $text =~ s{(\</Changes\>).*$}{$1}is;
+    my $P = new XML::Parser(Style => 'Tree');
+    my $tree = $P->parse($text);
+    $tree = find_child($tree, 'Changes');
+
+    map_children {
+      # This is called for each driver
+      my $driver = $_;
+      my $rkey = $driver->[0]{'rkey'};
+      my $path = "$OutDir/$rkey.ps";
+      my $stamp = strftime("%b %d %H:%M", localtime(time));
+
+      next if $rkey =~ /[^0-9a-fA-F-]/;
+      print "$stamp DUP $rkey\n" if $MONITOR && -f $path;
+      next if -f $path;
+
+      $report = sprintf("%s %3s %-6s %s\n", $rkey,
+        $driver->[0]{'CarNumber'},
+        $driver->[0]{'Class'},
+        $driver->[0]{'FirstName'} . " " . $driver->[0]{'LastName'});
+      $summary .= $report;
+      if ($MONITOR)    { print "$stamp $report" }
+      elsif ($VERBOSE) { print $report }
+      $dcount++;
+
+      my %fields = (
+        stamp     => $stamp,
+        old_car   => $driver->[0]{'CarNumber'},
+        old_class => $driver->[0]{'Class'},
+        old_fname => $driver->[0]{'FirstName'},
+        old_lname => $driver->[0]{'LastName'},
+        new_car   => $driver->[0]{'CarNumber'},
+        new_class => $driver->[0]{'Class'},
+      );
+      my $changed = 0;
+
+      map_children {
+        # This is called for each changed item
+        my $item = find_inferior($_, 'item', 0);
+        my $old  = find_inferior($_, 'orig', 0);
+        my $new  = find_inferior($_, 'new',  0);
+        $item =~ s/^\s*//; $item =~ s/\s*$//;
+        $old  =~ s/^\s*//; $old  =~ s/\s*$//;
+        $new  =~ s/^\s*//; $new  =~ s/\s*$//;
+        my $key  = $FieldMap{$item};
+        $report = sprintf("   %-15s %s => %s\n", $item, $old, $new);
+        $summary .= $report;
+        print $report if $VERBOSE;
+        if ($item eq 'reg_tech_reason_for_printing_ext') {
+          $fields{'reason'} = "$old $new";
+          next;
+        }
+        $tcount++;
+        $changed++;
+        if (defined($key)) {
+          $fields{"old_$key"} = $old if defined $old;
+          $fields{"new_$key"} = $new if defined $new;
+        } else {
+          $fields{'old_other'} ||= [];
+          $fields{'new_other'} ||= [];
+          push(@{$fields{'old_other'}}, "$item: $old");
+          push(@{$fields{'new_other'}}, "$item: $new");
+        }
+      } $driver, 'ChangedItem';
+      next unless $changed;
+
+      $summary .= "\n";
+      print "\n" if $VERBOSE;
+
+      # Clean up fields
+      $fields{old_driver} = $fields{old_fname} . ' ' . $fields{old_lname};
+      $fields{new_driver} = $fields{new_fname} . ' ' . $fields{new_lname};
+      $fields{old_home}   = $fields{old_city}  . ' ' . $fields{old_state};
+      $fields{new_home}   = $fields{new_city}  . ' ' . $fields{new_state};
+      delete $fields{old_make}  if $fields{old_name} eq 'Other';
+      delete $fields{new_make}  if $fields{new_name} eq 'Other';
+      delete $fields{old_model} if $fields{old_model} eq 'Other';
+      delete $fields{new_model} if $fields{new_model} eq 'Other';
+      $fields{old_make}  .= ' '.$fields{old_makex}  if exists $fields{old_makex} ;
+      $fields{old_model} .= ' '.$fields{old_modelx} if exists $fields{old_modelx};
+      $fields{new_make}  .= ' '.$fields{new_makex}  if exists $fields{new_makex} ;
+      $fields{new_model} .= ' '.$fields{new_modelx} if exists $fields{new_modelx};
+      $fields{old_mme} = join(' ', @fields{qw{old_make old_model old_engine}});
+      $fields{new_mme} = join(' ', @fields{qw{new_make new_model new_engine}});
+
+      if (exists($fields{old_other})) {
+        $fields{old_other} = join('; ', @{$fields{old_other}});
+      }
+      if (exists($fields{new_other})) {
+        $fields{new_other} = join('; ', @{$fields{new_other}});
+      }
+
+      if ($DEBUG) {
+        print STDERR map(sprintf("  %-12s %s\n", "$_:", $fields{$_}),
+          sort keys %fields);
+      }
+
+      make_form($Template, $path, \%fields);
+      sendack($rkey) if $SENDACK;
+
+      system ('lp', "-d$Printer", $path) if $Printer;
+    } $tree, 'Driver';
+  }
+
+  if ($MONITOR) {
+    my $done = strftime("%b %d %H:%M", localtime(time));
+    printf "%s -> %s %d entries, %d changes\n", $done, $start, $dcount, $tcount;
+  }
+  if ($REPORT && $Printer && $summary) {
+    # Print a summary report
+    my $P = new IO::Pipe;
+    $P->writer('lp', "-d$Printer") or die "lp: $!\n";
+    print $P ' ' x 25, "*** CHANGE SUMMARY REPORT ***\n";
+    print $P $summary;
+    $P->close;
+  }
+}
+
+
+sub get_data () {
+  my $req = new HTTP::Request(GET => $ReqURL);
+  my $ua  = new LWP::UserAgent;
+  $ua->show_progress(1);
+  my $res = $ua->request($req);
+
+  die $res->status_line . "\n" unless $res->is_success;
+  return $res->content;
+}
+
+parse_args;
+
+
+## Fetch the data file
+my $text;
+if ($ACKONLY) {
+  foreach (@ARGV) {
+    sendack($_);
+  }
+} elsif ($GETONLY) {
+  print get_data();
+} elsif (@ARGV) {
+  process_changes(join('', <>));
+} elsif ($MONITOR) {
+  while (1) {
+    process_changes(get_data());
+    sleep(30);
+  }
+} else {
+  process_changes(get_data());
+}
+
+__DATA__
+%!PS-Adobe-3.0
+%%Creator: changemon
+%%DocumentNeededResources: font Helvetica-Bold
+%%Pages: 1
+%%BeginProlog
+/inch {72 mul} def
+
+/doFont { findfont exch scalefont setfont } def
+%             size face       
+/TitleFont  {   18 /Helvetica-Bold  doFont } def
+/LabelFont  {   11 /Helvetica-Bold  doFont } def
+/FieldFont  {   11 /Helvetica       doFont } def
+
+%%EndProlog
+%%BeginSetup
+%%IncludeResource: font Helvetica-Bold
+%%EndSetup
+%%Page: 1 1
+
+% Page Title
+TitleFont
+(OFFICIAL TIMING & SCORING CHANGE FORM)
+dup stringwidth pop
+8.5 inch exch sub 2 div
+9.75 inch 
+moveto show
+
+(NOW)        dup stringwidth pop 1.9 inch exch sub 2 div 0.55 inch add 8.63 inch moveto show
+(CHANGE TO)  dup stringwidth pop 1.9 inch exch sub 2 div 0.55 inch add 5.50 inch moveto show
+
+0.55 inch 8.55 inch 1.900 inch 0.375 inch rectstroke
+0.55 inch 5.42 inch 1.900 inch 0.375 inch rectstroke
+
+LabelFont (Date)              6.50 inch 8.42 inch moveto show  FieldFont (@stamp@)       7.15 inch 8.42 inch moveto show
+LabelFont (Car #)             0.50 inch 8.09 inch moveto show  FieldFont (@old_car@)     1.25 inch 8.09 inch moveto show
+LabelFont (Class)             2.40 inch 8.09 inch moveto show  FieldFont (@old_class@)   3.20 inch 8.09 inch moveto show
+LabelFont (Transponder)       4.40 inch 8.09 inch moveto show  FieldFont (@old_tx@)      5.85 inch 8.09 inch moveto show
+LabelFont (Driver)            0.50 inch 7.75 inch moveto show  FieldFont (@old_driver@)  2.20 inch 7.75 inch moveto show
+LabelFont (Hometown/State)    0.50 inch 7.41 inch moveto show  FieldFont (@old_home@)    2.20 inch 7.41 inch moveto show
+LabelFont (Make/Model/Engine) 0.50 inch 7.07 inch moveto show  FieldFont (@old_mme@)     2.20 inch 7.07 inch moveto show
+LabelFont (Sponsor)           0.50 inch 6.73 inch moveto show  FieldFont (@old_sponsor@) 2.20 inch 6.73 inch moveto show
+LabelFont (Other)             0.50 inch 6.39 inch moveto show  FieldFont (@old_other@)   2.20 inch 6.39 inch moveto show
+
+LabelFont (Car #)             0.50 inch 4.96 inch moveto show  FieldFont (@new_car@)     1.25 inch 4.96 inch moveto show
+LabelFont (Class)             2.40 inch 4.96 inch moveto show  FieldFont (@new_class@)   3.20 inch 4.96 inch moveto show
+LabelFont (Transponder)       4.40 inch 4.96 inch moveto show  FieldFont (@new_tx@)      5.85 inch 4.96 inch moveto show
+LabelFont (Driver)            0.50 inch 4.61 inch moveto show  FieldFont (@new_driver@)  2.20 inch 4.61 inch moveto show
+LabelFont (Hometown/State)    0.50 inch 4.28 inch moveto show  FieldFont (@new_home@)    2.20 inch 4.28 inch moveto show
+LabelFont (Make/Model/Engine) 0.50 inch 3.94 inch moveto show  FieldFont (@new_mme@)     2.20 inch 3.94 inch moveto show
+LabelFont (Sponsor)           0.50 inch 3.60 inch moveto show  FieldFont (@new_sponsor@) 2.20 inch 3.60 inch moveto show
+LabelFont (Other)             0.50 inch 3.26 inch moveto show  FieldFont (@new_other@)   2.20 inch 3.26 inch moveto show
+
+LabelFont (Reason:)           1.25 inch 2.50 inch moveto show  FieldFont (@reason@)      2.25 inch 2.50 inch moveto show
+
+LabelFont (Changed in:) 1.25 inch 2.15 inch moveto show
+FieldFont
+
+(Orbits A)       2.25 inch 2.15 inch moveto show
+(Orbits B)       2.25 inch 1.92 inch moveto show
+(Orbits C)       2.25 inch 1.69 inch moveto show
+(Pit Monitor)    2.25 inch 1.48 inch moveto show
+(Excel database) 2.25 inch 1.27 inch moveto show
+
+4.8 inch 2.15 inch moveto 5.5 inch 2.15 inch lineto stroke
+4.8 inch 1.92 inch moveto 5.5 inch 1.92 inch lineto stroke
+4.8 inch 1.69 inch moveto 5.5 inch 1.69 inch lineto stroke
+4.8 inch 1.48 inch moveto 5.5 inch 1.48 inch lineto stroke
+4.8 inch 1.27 inch moveto 5.5 inch 1.27 inch lineto stroke
+
+showpage
+%%Trailer
+%%Pages: 1
