@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+use IO::File;
+use Text::CSV;
+use strict;
+
+our @KeyCols = ('Class', 'Member ID');
+our %Ignore = map(($_ => 1), (
+    'Member End Date', 'Registered', 'Last Updated',
+    'Postal Code', 'Logbook', 'Track Front Rear', 'Wheelbase',
+  ));
+
+sub usage {
+  print STDERR @_, "\n" if @_;
+  print <<"EOF";
+usage: reg_diff file1 file2
+       reg_diff -h
+  -h  This help message
+EOF
+  exit !!@_;
+}
+
+sub parse_args () {
+  my %opts;
+
+  getopts('h', \%opts) or usage("Invalid option!");
+  usage()    if $opts{h};
+
+  usage('Exactly two filenames are required') unless @ARGV == 2;
+}
+
+sub load_csv ($) {
+  my($path) = @_;
+
+  my $F = new IO::File($path, O_RDONLY) or die "$path: $!\n";
+  my $head = <$F>;
+  my $C = new Text::CSV( { binary => 1,
+      ($head =~ /\t/) ? (
+        sep_char    => "\t",
+        quote_char  => undef,
+        escape_char => undef,
+      ) : ()
+    });
+  $C->parse($head) or die "$path: failed parsing column headers\n";
+  my @cols = $C->fields();
+  $C->column_names(@cols);
+  map($Ignore{$_}++, grep(/^weight/i, @cols));
+
+  my $data = {};
+  while (my $hr = $C->getline_hr($F)) {
+    #print STDERR '.';
+    my $key = join('_', map($$hr{$_}, @KeyCols));
+    $$data{$key} = $hr;
+  }
+  $C->error_diag();
+  $F->close;
+  $data;
+}
+
+parse_args;
+
+binmode STDOUT, ':utf8';
+autoflush STDERR 1;
+my $A = load_csv($ARGV[0]);
+my $B = load_csv($ARGV[1]);
+my $OUT = new Text::CSV( { binary => 1, eol => "\n" });
+$OUT->print(\*STDOUT, [qw[key field old new]]);
+
+foreach my $key (sort keys %$A) {
+  my $a = $$A{$key};
+  my $b = delete $$B{$key};
+  if (!defined($b)) {
+    $OUT->print(\*STDOUT, [ $key, '-deleted-' ]);
+    next;
+  }
+  foreach my $col (sort keys %$a) {
+    next unless exists $$b{$col};
+    next if $Ignore{$col};
+    next if $$a{$col} eq $$b{$col};
+    $OUT->print(\*STDOUT, [ $key, $col, $$a{$col}, $$b{$col}]);
+  }
+}
+foreach my $key (sort keys %$B) {
+  $OUT->print(\*STDOUT, [ $key, '+added+' ]);
+}

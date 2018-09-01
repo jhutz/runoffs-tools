@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+
+use Data::Dumper;
+use Text::CSV;
+
+@gcols = ('Name','Given Name','Additional Name','Family Name',
+  'Yomi Name','Given Name Yomi','Additional Name Yomi','Family Name Yomi',
+  'Name Prefix','Name Suffix','Initials','Nickname','Short Name','Maiden Name',
+  'Birthday','Gender','Location','Billing Information','Directory Server',
+  'Mileage','Occupation','Hobby','Sensitivity','Priority','Subject','Notes',
+  'Group Membership','E-mail 1 - Type','E-mail 1 - Value'
+);
+
+my $IN = Text::CSV->new( {
+    sep_char => "\t", quote_char => undef, escape_char => undef, binary => 1,
+  });
+$IN->column_names($IN->getline(\*STDIN));
+
+my $OUT = Text::CSV->new( {
+    quote_space => 0, binary => 1, eol => "\n",
+  });
+$OUT->column_names(@gcols);
+$OUT->print(\*STDOUT, \@gcols);
+
+while ($hr = $IN->getline_hr(\*STDIN)) {
+  #print STDERR Dumper($hr);
+  $OUT->print_hr(\*STDOUT, {
+      'Name'             => join(' ', $$hr{'Vehicle #'}, $$hr{'Class'},
+        $$hr{'First Name'}, $$hr{'Last Name'}),
+      'Given Name'       => $$hr{'First Name'},
+      'Family Name'      => $$hr{'Last Name'},
+      'Notes'            => join("\n",
+        'Member #' . $$hr{'Member ID'} . ' (' . $$hr{'Region of Record'} . ')',
+        join(' ', $$hr{'Vehicle #'}, $$hr{'Class'}),
+        join(' ', $$hr{'Official Color'}, $$hr{'Vehicle Year'},
+          $$hr{'Official Make'}, $$hr{'Official Model'},
+          '(' . $$hr{'Engine Make'} . ')'),
+        'Transponder #' . $$hr{'Transponder'},
+      ),
+      'Group Membership' => '* Runoffs2017',
+      'E-mail 1 - Type'  => '* ',
+      'E-mail 1 - Value' => $$hr{'Email'},
+    });
+}

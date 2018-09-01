@@ -12,167 +12,287 @@ use URI::Escape;
 use Text::Wrap;
 
 use strict;
-use vars qw($PROG $PROGDIR %ClassKey);
+use vars qw($PROG $PROGDIR $LOGOFILE $LOGOPATH $LOGODATA %ClassKey);
 use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
 use vars qw($OutDir $Template $Printer $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
 
 $PROG = File::Spec->rel2abs($0);
 $PROGDIR = dirname($PROG);
+$LOGOFILE = 'scca-runoffs-indy-pos-transparent.eps';
+$LOGOPATH = "$PROGDIR/../Images/$LOGOFILE";
 
-$SERVER   = '172.16.20.2';
-$USERID   = 'tands1';
+$SERVER   = 'racecontrol.scca.com';
+$USERID   = 'tandsusr1';
 $OutDir   = "$PROGDIR/../Actions";
 $Template = join('', <DATA>);
 
 $Text::Wrap::unexpand = 0;
 
 %ClassKey = (
-  '7928a7ec-6a51-4f92-b776-099562b23a02' => 'Qualifying 09/19 08:00 FM',
-  'f77275f1-3da9-4889-86dd-5b632968e97d' => 'Qualifying 09/19 08:00 FE',
-  '620b990b-cff2-4c89-83d6-63d95d198ffd' => 'Qualifying 09/19 08:00 P1',
-  'fa228d7c-8437-4da1-bbea-69eca4500572' => 'Qualifying 09/19 08:40 GT3',
-  'c90e36f3-50ce-443b-aa0b-09a078f99438' => 'Qualifying 09/19 08:40 AS',
-  '229e79c4-5404-4f1e-8f0e-e28a9e59ac49' => 'Qualifying 09/19 09:20 T3',
-  '87ac131d-5fb9-4749-95cf-e657d05a0c4f' => 'Qualifying 09/19 09:20 SRF',
-  'fc9b9ce9-0e00-4b04-81e2-e79d2509510e' => 'Qualifying 09/19 10:00 T2',
-  '72741c31-ee0b-4eb0-a78f-8604d41050a2' => 'Qualifying 09/19 10:00 FC',
-  '3cd37565-0105-40f7-b2b9-1307324fc041' => 'Qualifying 09/19 10:00 FA',
-  'dc90ee59-816d-4f31-80fb-4114e272f3c3' => 'Qualifying 09/19 10:40 SM',
-  'f5c9fe87-706e-4d85-9662-5fdda93c4329' => 'Qualifying 09/19 11:05 FV',
-  '10f098e5-1d99-4b8b-8b75-7a1a11b8a3fd' => 'Qualifying 09/19 11:30 FP',
-  '12a38733-cdc9-4466-b1b6-a1f1a9d69dc3' => 'Qualifying 09/19 12:45 STL',
-  '0b5613f3-982f-48b8-acd8-dce62adc5c25' => 'Qualifying 09/19 13:10 SRF3',
-  'c15352e2-bf87-4d01-a1e0-f94c14d37dc0' => 'Qualifying 09/19 13:35 GTL',
-  '9291d894-c0bb-43cd-9d04-4dc40bae31c7' => 'Qualifying 09/19 13:35 F5',
-  '7ed15c57-d918-4e2b-9812-cf4f7487be45' => 'Qualifying 09/19 14:15 FF',
-  '73ca69d3-3f67-49ca-9dc8-ac767e7ff977' => 'Qualifying 09/19 14:15 EP',
-  '8c361e89-1c2b-4e89-af3a-df7c8494802b' => 'Qualifying 09/19 14:55 FB',
-  'fefc7a58-2030-42a4-a41c-60793c83c35c' => 'Qualifying 09/19 14:55 STU',
-  'fa7eca8f-0995-4891-885a-4f31770dbe22' => 'Qualifying 09/19 15:35 GT2',
-  'd86cef63-e017-4986-8c37-19a6413a8a40' => 'Qualifying 09/19 16:00 HP',
-  '40ef6c40-f457-41b4-8871-3a5f612ac311' => 'Qualifying 09/19 16:25 P2',
-  'c26a33b4-d8f7-46e4-922f-b858112e425a' => 'Qualifying 09/19 16:25 GT1',
-  '970f441b-d587-4e6d-8aef-9e53333e1792' => 'Qualifying 09/19 16:25 T1',
-  '70d88eba-c199-43b1-88f6-82f8f73fb1b0' => 'Qualifying 09/19 17:05 T4',
-  '552a3a28-8dfd-4bdf-9389-efe634669439' => 'Qualifying 09/19 17:05 B-Spec',
-  '5db2a7b1-342b-485d-8341-e804aa743a9a' => 'Qualifying 09/20 08:00 SRF',
-  'b4ecb40f-882d-459e-bea3-3f230ee913a8' => 'Qualifying 09/20 08:00 T3',
-  'f9ce261d-8662-46c9-a7d0-4de8a1c54532' => 'Qualifying 09/20 08:40 GT3',
-  'ab71e820-fa52-47d9-b1ea-a524a919f372' => 'Qualifying 09/20 08:40 AS',
-  'ad9a71f7-bf65-4275-9706-8a441a3af6cc' => 'Qualifying 09/20 09:20 FM',
-  '0f315a94-e697-4efd-bd68-9420e1bd262d' => 'Qualifying 09/20 09:20 FE',
-  'df597102-d331-4233-83bd-3af85c6c551c' => 'Qualifying 09/20 09:20 P1',
-  '20caa728-1084-4f3a-bc13-481642896560' => 'Qualifying 09/20 10:00 T2',
-  '66db611f-0a54-4ff3-b0e9-21d986d67d63' => 'Qualifying 09/20 10:00 FC',
-  '139e19c6-24d9-44ab-a7ce-6df515a272c4' => 'Qualifying 09/20 10:00 FA',
-  'c3de2932-6b54-4063-81c5-b786f9b8165c' => 'Qualifying 09/20 10:40 SM',
-  '9b019fbd-e761-43dc-b0f0-72b71ce4a211' => 'Qualifying 09/20 11:05 FP',
-  '189f7427-bfe4-40ec-a7f6-60100d832eb4' => 'Qualifying 09/20 11:30 FV',
-  '7bf69c46-3e57-44a6-9085-deae764aed68' => 'Qualifying 09/20 12:45 STL',
-  '3b52bbea-c34d-4a79-a355-5fee8e46e780' => 'Qualifying 09/20 13:10 SRF3',
-  '99a585f8-0f06-4ba9-873d-eb9939f9c4b6' => 'Qualifying 09/20 13:35 F5',
-  '16d542ec-c1b3-45e7-87e3-fb6471a4d491' => 'Qualifying 09/20 13:35 GTL',
-  '0abc2834-361f-4387-8367-9108b138d300' => 'Qualifying 09/20 14:15 EP',
-  '9d588617-188d-4515-9721-5e64a6d48ad7' => 'Qualifying 09/20 14:15 FF',
-  '91ee784b-6b65-4b62-a23d-58925009bfdc' => 'Qualifying 09/20 14:55 P2',
-  '496fe506-f3fc-42ad-a366-17a9683f47ea' => 'Qualifying 09/20 14:55 GT1',
-  '182c4642-ee59-4bfa-bcba-942b10688dd4' => 'Qualifying 09/20 14:55 T1',
-  'e35f8f7e-b3b0-437d-be83-dccd9666ab35' => 'Qualifying 09/20 15:35 B-Spec',
-  'bec6945d-e070-4b87-8e8e-ce596446800e' => 'Qualifying 09/20 15:35 T4',
-  '6e09ffcd-414e-4438-829f-f9abe8986fbf' => 'Qualifying 09/20 16:00 GT2',
-  '130fd3a9-910f-4068-9400-169902f609b8' => 'Qualifying 09/20 16:25 STU',
-  '5e996338-0727-4273-8226-7ef651a56762' => 'Qualifying 09/20 16:25 FB',
-  '149c671f-d204-4d38-a908-13386edb29b3' => 'Qualifying 09/20 17:05 HP',
-  '15eaa7aa-c82d-4176-9cf6-f30c0b90f05a' => 'Qualifying 09/21 08:00 FE',
-  '263ee43d-b3e5-4ea2-931f-c2d7f9879aa2' => 'Qualifying 09/21 08:00 P1',
-  '69886b07-44ea-441f-b930-a558d020e0d7' => 'Qualifying 09/21 08:00 FM',
-  'd03dbb5b-248b-47ce-a4b9-b91b4474a8bf' => 'Qualifying 09/21 08:40 AS',
-  '5326564e-b8d3-49f1-b85f-9155a21fe6eb' => 'Qualifying 09/21 08:40 GT3',
-  '2b8e31f4-71bc-4514-b551-a33c35436083' => 'Qualifying 09/21 09:20 SRF',
-  'bcabcb63-d9f5-4df4-b647-5577f84671eb' => 'Qualifying 09/21 09:20 T3',
-  '0d7f0590-5ebf-4f58-aea4-0fff28dd2e77' => 'Qualifying 09/21 10:00 T2',
-  '89cf531a-7b7a-4447-9096-494aa183bcf7' => 'Qualifying 09/21 10:00 FA',
-  '46f739ee-d2a4-4ba9-870f-bf5e44179f79' => 'Qualifying 09/21 10:00 FC',
-  'a26db4be-02c3-4c43-9c19-c78342acc9f3' => 'Qualifying 09/21 10:40 SM',
-  'a10d824d-ab88-4dd9-b8cf-bd355650a84d' => 'Qualifying 09/21 11:05 FV',
-  '57c938c1-28fb-46c8-8077-d93611eab775' => 'Qualifying 09/21 11:30 FP',
-  '1dbf5831-349a-4cee-8e22-14be62e2eea7' => 'Qualifying 09/21 12:45 SRF3',
-  '4acf3b1f-f9a2-4da9-aa49-1f833d092f4d' => 'Qualifying 09/21 13:10 STL',
-  '8c9be2b0-d135-4628-b31c-21d10e14ece2' => 'Qualifying 09/21 13:35 GTL',
-  'fac1e26d-f4ea-45b9-b0c6-c4aa29479cfb' => 'Qualifying 09/21 13:35 F5',
-  '0fde91ef-eb86-4e4e-8720-49b921901991' => 'Qualifying 09/21 14:15 FF',
-  'e649f75f-953b-4e57-b23b-61ad6fecefd5' => 'Qualifying 09/21 14:15 EP',
-  'e41a9b6c-3dcc-49da-a563-2906f62b507d' => 'Qualifying 09/21 14:55 FB',
-  'e73f6fc2-d592-46c8-b3d4-be878128b1f7' => 'Qualifying 09/21 14:55 STU',
-  '92264c6f-e6bb-4700-8ef8-4171ea09d0d3' => 'Qualifying 09/21 15:35 HP',
-  '282d83c8-e817-43e0-bfeb-ac2e5f1621e5' => 'Qualifying 09/21 16:00 T4',
-  'faba19b2-2d88-41b7-9ace-b4a6edd7539c' => 'Qualifying 09/21 16:00 B-Spec',
-  'db96075c-4071-4627-baff-a1b6307d15f1' => 'Qualifying 09/21 16:25 GT1',
-  '4c6ae18c-8222-4ce2-a1ff-c38590a3df65' => 'Qualifying 09/21 16:25 P2',
-  '79c54254-571a-4d61-ba1f-65b9cfb6c7bc' => 'Qualifying 09/21 16:25 T1',
-  'f8317a03-5c01-4e37-85f7-834459e65db8' => 'Qualifying 09/21 17:05 GT2',
-  '4686ffb8-5a9b-4bb4-a9fb-839c770bc7c4' => 'Qualifying 09/22 08:00 T3',
-  'd37e1ecb-8397-4176-a23b-ab7ece68f309' => 'Qualifying 09/22 08:00 SRF',
-  'cf7a534e-aa48-48cb-ba94-55224804daa2' => 'Qualifying 09/22 08:40 AS',
-  'e982c272-0a22-4e16-8df9-0069608f69ad' => 'Qualifying 09/22 08:40 GT3',
-  'd4a84949-cfb4-44fb-b0a2-b5de18acb051' => 'Qualifying 09/22 09:20 FE',
-  'f2411ee7-a50c-419b-8fff-a0805ed70583' => 'Qualifying 09/22 09:20 P1',
-  'abb3b71f-1704-4f38-a998-d56878904638' => 'Qualifying 09/22 09:20 FM',
-  '17c0b034-71bb-4da3-ad8e-fe265e53d300' => 'Qualifying 09/22 10:00 FA',
-  '07ba6d14-48a8-4e5a-9cd7-aa4836d4ea92' => 'Qualifying 09/22 10:00 FC',
-  'dfc62287-5a1f-4def-95a6-547e9c2e8b7b' => 'Qualifying 09/22 10:00 T2',
-  '2df392b9-1a8c-455b-8ad8-ac895739c4b6' => 'Qualifying 09/22 10:40 SM',
-  '8bd4cd42-17cd-489d-813a-06b831f8cc98' => 'Qualifying 09/22 11:05 FP',
-  '6dde5309-ca28-43b7-9ebc-37731d7fee60' => 'Qualifying 09/22 11:30 FV',
-  '401814b5-454d-47be-8be9-0705f031985a' => 'Qualifying 09/22 12:45 STL',
-  '5ddb4ff4-3017-4140-851f-0d9205c76cea' => 'Qualifying 09/22 13:10 SRF3',
-  '0a191136-d356-4675-988a-352cfcfc4bc8' => 'Qualifying 09/22 13:35 F5',
-  '074715e8-6e9d-4d89-9c46-768cf9999edb' => 'Qualifying 09/22 13:35 GTL',
-  'c899ecb9-b1b9-4414-9905-ec4e7780f730' => 'Qualifying 09/22 14:15 FF',
-  '004c6775-d06c-4bf1-b257-ede2ebcf01b8' => 'Qualifying 09/22 14:15 EP',
-  'e8219b14-f5ae-4733-8044-72e717d5315a' => 'Qualifying 09/22 14:55 T1',
-  '6ecc17ea-a1eb-4c08-9129-4b6f99b464ab' => 'Qualifying 09/22 14:55 P2',
-  '899d394d-3793-4344-81c9-5b0edb319884' => 'Qualifying 09/22 14:55 GT1',
-  '5cc7ba7c-0778-43e4-a58c-9a24fe8a1960' => 'Qualifying 09/22 15:35 GT2',
-  '301cf49c-0e21-4d4c-bf14-886851e264be' => 'Qualifying 09/22 16:00 HP',
-  '07fcffc1-42e3-421c-9524-4c1ed8fcb05b' => 'Qualifying 09/22 16:25 STU',
-  'dd5a82d8-6fd9-4974-a08d-25190adc18c9' => 'Qualifying 09/22 16:25 FB',
-  'f8176885-3704-4b05-8436-a4f8dcc17b4a' => 'Qualifying 09/22 17:05 B-Spec',
-  '78757a03-701c-4c5a-9548-ee8a56931581' => 'Qualifying 09/22 17:05 T4',
-  '39926be0-26cc-44a9-9f18-71e7943c90ce' => 'Race 09/23 08:05 FE',
-  'de504661-38bb-41e0-8f0c-3db4194e03f7' => 'Race 09/23 09:00 AS',
-  '89d46bcd-4fb9-4bcf-9c97-0d2b985cb27d' => 'Race 09/23 09:55 P1',
-  '64fe64af-2127-41ea-bc59-ebc3f9e09085' => 'Race 09/23 10:50 T2',
-  'c55d08d0-1a9b-4eb7-b475-c2d8969f2534' => 'Race 09/23 11:45 FV',
-  'fb3e6e21-d2da-40c2-bff4-478396434fe9' => 'Race 09/23 13:30 EP',
-  'e8002dfe-e10a-45f2-99cc-e2ae75566bbb' => 'Race 09/23 14:25 F5',
-  'cdda451c-83e8-46ed-bd23-1c5c207283cc' => 'Race 09/23 15:20 STU',
-  '9ab16ece-84e8-4029-901e-4a0ab66a60d4' => 'Race 09/23 16:15 GT2',
-  '6eb407f1-2d76-4e6b-8c67-fd8b29e335ed' => 'Race 09/23 17:10 T4',
-  'a745f632-6781-463f-b149-395416d51f9b' => 'Race 09/24 08:15 T3',
-  '8bb20562-9a10-456d-a984-36183ca6d2e5' => 'Race 09/24 09:10 SRF',
-  '5bc1826a-a99f-4c4e-9155-457a9e219966' => 'Race 09/24 10:05 FM',
-  '95638c78-5e76-40f8-969a-806786067d55' => 'Race 09/24 11:00 SM',
-  '75522d17-249d-4ddd-a322-9061622578cd' => 'Race 09/24 12:45 STL',
-  '63c56415-4580-49ae-9c91-7627169c6f51' => 'Race 09/24 13:40 GTL',
-  '2ba5817f-4938-4280-b5f2-03fa9f7d0539' => 'Race 09/24 14:35 FB',
-  'de63ecde-d0a0-41ac-a584-4d163b9ed0cc' => 'Race 09/24 15:30 HP',
-  '3704d849-2446-4321-bb1e-e82d3067ca81' => 'Race 09/24 16:25 B-Spec',
-  '7390e5b7-b8e0-4b96-b08c-b7f589822f94' => 'Race 09/25 08:30 FA',
-  '5cf15511-2f94-43e9-a006-c238da55bfe8' => 'Race 09/25 09:25 GT3',
-  'da6097be-2907-4868-8bb2-5e59c01731ce' => 'Race 09/25 10:20 FC',
-  'f4e415b4-2306-4f88-897a-cfc88c3e74de' => 'Race 09/25 11:15 FP',
-  '726ac969-3bac-4a97-ae43-00c3137227be' => 'Race 09/25 13:00 FF',
-  '626ce1a9-d8da-4fa9-9721-6cfa1ffaac3f' => 'Race 09/25 13:55 SRF3',
-  '5666c63d-af05-49d0-b49b-2ae3a982b731' => 'Race 09/25 14:50 T1',
-  '7ebe40e7-1c8d-4200-8fe0-7864a4b0eb2c' => 'Race 09/25 15:45 P2',
-  'b51127d6-0af7-421e-972b-8a0436911b55' => 'Race 09/25 16:40 GT1',
+  'effd2c15-0f11-4719-b8b7-060d21f98b27' => 'Testing 09/21 08:00 GT3',
+  'c97b96ed-a248-41a8-8e8b-72fb8b29d41e' => 'Testing 09/21 08:00 STU',
+  '919f4ccb-e9a8-4113-91e3-972054f6952d' => 'Testing 09/21 08:00 T2',
+  '4ca8d61e-651f-4ce7-a43f-9cff2543576b' => 'Testing 09/21 08:00 GT2',
+  '5af167a8-87d8-4652-a0d6-b02216ed5964' => 'Testing 09/21 08:00 T1',
+  '8176b401-f93c-4461-91cf-b46d2e43e160' => 'Testing 09/21 08:00 AS',
+  'd03635ef-0e2d-4155-be68-c6e5b6fa8f68' => 'Testing 09/21 08:00 GT1',
+  '0b0196b7-eb27-4f50-826a-c995f07a19ec' => 'Testing 09/21 08:20 GTL',
+  'ae0ad187-4fbd-4df6-b9e1-9a52bfd5cb66' => 'Testing 09/21 08:20 T3',
+  '9c0a6cbf-6ee9-426a-8b05-d572819739b1' => 'Testing 09/21 08:20 STL',
+  '6245e0e7-5d46-42ad-9362-eb4856473040' => 'Testing 09/21 08:20 FP',
+  '77e1953a-924e-4e4b-bce1-7158976dd416' => 'Testing 09/21 08:20 T4',
+  'a3f33581-f494-432b-855c-65911a50ff9c' => 'Testing 09/21 08:20 SM',
+  '87f35b9f-c0a8-455d-8367-49a25f1e5f9f' => 'Testing 09/21 08:20 HP',
+  '57f59cbd-a5b2-44f8-8552-553f58f62865' => 'Testing 09/21 08:20 EP',
+  'e1191706-ad19-4fba-9d99-28e23a82f892' => 'Testing 09/21 08:20 B-Spec',
+  'c08abf6c-90f3-4cc0-a7ad-2f045704d4e4' => 'Testing 09/21 08:40 SRF3',
+  '19bc0247-755c-47c0-9af9-7c706bfee5d6' => 'Testing 09/21 08:40 FF',
+  '580f03f8-d07d-4020-b2d0-a71aee8779cc' => 'Testing 09/21 08:40 FV',
+  '7b7c374b-bc11-400c-86f2-c516a3f72fe6' => 'Testing 09/21 08:40 SRF',
+  '12cfc9aa-7617-4a39-aa9c-a730793fea3c' => 'Testing 09/21 09:00 FM',
+  'def36dac-49f8-4905-a6da-96a392802fc1' => 'Testing 09/21 09:00 P1',
+  'c512e6ba-948d-461e-bdf8-56dc5ff7662f' => 'Testing 09/21 09:00 FB',
+  '1a595cf2-ac05-4f4d-a9c0-58c8e56f5da3' => 'Testing 09/21 09:00 FA',
+  '139c2aed-7dad-4aab-9e38-41d4598465b9' => 'Testing 09/21 09:00 FE',
+  '27f3a598-2052-47c5-9b4f-385ede427100' => 'Testing 09/21 09:00 FC',
+  'f7f0503c-3070-40c9-adec-0eddd98227ad' => 'Testing 09/21 09:00 P2',
+  '154e8fae-d3e9-48c2-9e4d-0591f254bb96' => 'Testing 09/21 09:20 GT1',
+  'f9c036e4-069b-43ab-bf26-23c74ff0a5a3' => 'Testing 09/21 09:20 T1',
+  '75f67860-162f-4964-a03b-223f535b4751' => 'Testing 09/21 09:20 GT3',
+  '15f9e1e3-5d15-4131-b3e7-79fc323690cb' => 'Testing 09/21 09:20 AS',
+  'aeb5a442-c4b1-4008-9d17-647009eebc1c' => 'Testing 09/21 09:20 STU',
+  '1678ad0d-6752-471a-8dde-8dae395ddc6f' => 'Testing 09/21 09:20 GT2',
+  '16cb8c1f-c8cd-42f5-b7f6-f2693f83f94a' => 'Testing 09/21 09:20 T2',
+  '87999c2f-8a8b-48e3-b0d0-f1016c15df76' => 'Testing 09/21 09:40 GTL',
+  '4acd6f70-0be6-40f1-b526-e483dac71de9' => 'Testing 09/21 09:40 STL',
+  'babbe933-2c5f-470b-95e1-89df9aaf4d99' => 'Testing 09/21 09:40 FP',
+  '9b30472f-83dd-4f1a-be3c-c6c010d4adc3' => 'Testing 09/21 09:40 HP',
+  'cdeba7db-7c5d-4f69-95d7-be08880dbf0e' => 'Testing 09/21 09:40 SM',
+  '22eca186-1d24-4e7a-8a83-b3fe52aee817' => 'Testing 09/21 09:40 T3',
+  'f605147f-219f-46e5-a78a-67495daa0ec8' => 'Testing 09/21 09:40 EP',
+  '8de6f2c1-c304-4551-b61f-54f1f8b89144' => 'Testing 09/21 09:40 T4',
+  '2b529c02-5156-47b5-b01a-1d34d7710ca1' => 'Testing 09/21 09:40 B-Spec',
+  'ee8658c4-8585-41c3-be26-1d3229180bf0' => 'Testing 09/21 10:00 FV',
+  '7a03e091-a1c7-43c5-9ffe-26724d6a1765' => 'Testing 09/21 10:00 F5',
+  'bb780ebd-f9d9-45e6-9616-2d3fbbddf5e7' => 'Testing 09/21 10:00 FF',
+  '6f1bf886-f016-4fc2-a348-156cbd192066' => 'Testing 09/21 10:00 SRF3',
+  '70f7abf4-cecc-4548-873c-dc5d603ea8e9' => 'Testing 09/21 10:00 SRF',
+  'cffad737-7f00-4c72-8f5c-f6889f8f0d35' => 'Testing 09/21 10:20 FE',
+  'dd009388-df10-4685-b782-ba02023e3cac' => 'Testing 09/21 10:20 P2',
+  '2acac99e-97cd-4fd5-8098-24d36fdc2f52' => 'Testing 09/21 10:20 FM',
+  '20dc1891-0c1b-456a-ad2e-591292607877' => 'Testing 09/21 10:20 FB',
+  '1602945f-9b13-440f-9d2e-4bfd0b17da60' => 'Testing 09/21 10:20 FA',
+  '19914058-e2f1-4cc7-b300-4f81d94db280' => 'Testing 09/21 10:20 FC',
+  '5504b567-ee10-49e8-ad2d-5f04e93eab57' => 'Testing 09/21 10:20 P1',
+  '77ada699-3cb1-430d-b896-6c9b603554c2' => 'Testing 09/21 12:35 T2',
+  '37606e65-09d7-4364-b0d4-7ceebfeebaaa' => 'Testing 09/21 12:35 GT3',
+  'faac3ca4-28a9-4495-bac0-2a69920f819e' => 'Testing 09/21 12:35 T1',
+  'b48fcc84-b4a5-4af5-a19c-2228cb8d097a' => 'Testing 09/21 12:35 GT1',
+  'a01a098d-5d23-4c11-acf6-025fb6bd6f1e' => 'Testing 09/21 12:35 STU',
+  'a7d7cb9a-b4c9-4df6-a4a7-a3219b36c2ff' => 'Testing 09/21 12:35 GT2',
+  'c54e312b-3fa4-4e45-a61e-fbc8529909f2' => 'Testing 09/21 12:35 AS',
+  '30187631-0ee1-4d05-aea4-fa3e50b25833' => 'Testing 09/21 13:00 EP',
+  'f099f9a1-77d4-452e-8221-dabd9ad7febe' => 'Testing 09/21 13:00 T3',
+  '31ea6975-7fc0-42e1-94fb-d4fdc952ffdc' => 'Testing 09/21 13:00 STL',
+  'cd53b83d-053e-4427-bdeb-99fc0da8b200' => 'Testing 09/21 13:00 HP',
+  'f9fb51d8-b705-46cc-8e7d-c67fe4184c9b' => 'Testing 09/21 13:00 FP',
+  '280c288c-627c-461c-a69a-0bea50b5f7d7' => 'Testing 09/21 13:00 T4',
+  '10292e14-a70f-43ea-8d86-0f7ca7ba406e' => 'Testing 09/21 13:00 SM',
+  '56eec300-2606-4ef9-abd6-628bb4fa9e4d' => 'Testing 09/21 13:00 B-Spec',
+  '855df547-80f2-4ccb-b176-5129ec7364b9' => 'Testing 09/21 13:00 GTL',
+  'f59b90e1-0a89-4e35-84f0-7ba762aaf458' => 'Testing 09/21 13:25 F5',
+  '8916fe08-5e72-4ec8-9382-0695beff2502' => 'Testing 09/21 13:25 FF',
+  'fe398447-9e6b-4dee-afc0-98ecdf2d044e' => 'Testing 09/21 13:25 SRF',
+  'be239431-0f75-45ae-9be7-83422be2e8ff' => 'Testing 09/21 13:25 SRF3',
+  '49383065-bf84-405e-9806-fdc5be21a76f' => 'Testing 09/21 13:25 FV',
+  '3778dfa4-55e4-4705-b6f7-dc4b036cbafc' => 'Testing 09/21 13:50 P1',
+  'a5a61af5-4324-4912-a433-b95c971c9524' => 'Testing 09/21 13:50 FE',
+  '6730b100-2b70-42c6-860c-01dfb9780a5d' => 'Testing 09/21 13:50 FC',
+  '9a6576cf-7484-40d8-a5af-10ef3c949a25' => 'Testing 09/21 13:50 FA',
+  '4e03524d-3b68-44b0-9ca6-141bc947d8ed' => 'Testing 09/21 13:50 FB',
+  '57205198-2833-4189-b664-36fb66cb35f3' => 'Testing 09/21 13:50 FM',
+  '3d357844-67bd-42cd-a11c-63d37fe31a33' => 'Testing 09/21 13:50 P2',
+  '2f48a035-f4dd-4536-ae70-2d2dccc0bc4b' => 'Testing 09/21 14:15 T1',
+  '459e5092-9341-4e4f-8192-31b2b2be7efd' => 'Testing 09/21 14:15 GT3',
+  '7ce24d4e-ce57-41ca-bd18-1795bdb27998' => 'Testing 09/21 14:15 T2',
+  'b45af1cb-8cd0-4606-8429-1bf633d8df36' => 'Testing 09/21 14:15 AS',
+  '73412f58-c2e8-4d6b-9ec4-ae68f5d0ae6f' => 'Testing 09/21 14:15 GT2',
+  'dc5d59bb-fe65-423d-9ed7-d20141088cfc' => 'Testing 09/21 14:15 GT1',
+  'c7c7d0ed-1c0e-4b83-be15-e7bea9d080d2' => 'Testing 09/21 14:15 STU',
+  '84c7a2af-6f1f-403f-a2be-f6861ec96e6b' => 'Testing 09/21 14:45 HP',
+  '1a882d4e-0971-4706-85e2-f892adca35e8' => 'Testing 09/21 14:45 STL',
+  '5d502fb9-08f4-447b-be16-fc0a4a9092d1' => 'Testing 09/21 14:45 SM',
+  '7ad35de0-095a-47ce-becf-97d9c7a2d822' => 'Testing 09/21 14:45 GTL',
+  '78e65c5c-ce5f-4154-93e5-050a4158cb6f' => 'Testing 09/21 14:45 EP',
+  'd61e1f60-5d62-4d63-9362-391e8096b405' => 'Testing 09/21 14:45 FP',
+  'a0b2916d-651e-4619-8ea2-5e5304a035ab' => 'Testing 09/21 14:45 B-Spec',
+  '9d650593-8d1e-486f-ad6f-7d4ca9e93358' => 'Testing 09/21 14:45 T4',
+  'd4e06b15-7834-4640-b69f-42bfcaae283e' => 'Testing 09/21 14:45 T3',
+  '6b7e3e65-d421-406e-abe4-75e93d94ed9c' => 'Testing 09/21 15:15 FF',
+  '9bd3bf0e-e38c-48fe-8093-79b1cab006d9' => 'Testing 09/21 15:15 FV',
+  '70979cad-e93e-4eab-bdee-2f0561ff2d3d' => 'Testing 09/21 15:15 F5',
+  '9115f73a-9ff1-4b75-b17f-ede4d404752f' => 'Testing 09/21 15:15 SRF',
+  'ba7c4a57-4f06-473a-8b1a-e13aea32834b' => 'Testing 09/21 15:15 SRF3',
+  '996a6412-93c9-419b-a77f-d566309939e2' => 'Testing 09/21 15:45 FA',
+  'fa6fad11-c793-463c-b63c-d49b7c098bfb' => 'Testing 09/21 15:45 P1',
+  'eb12febf-57b2-49a3-8567-23c607512bf4' => 'Testing 09/21 15:45 P2',
+  'ce828fd4-76b7-4d00-aedc-1cf94475bc07' => 'Testing 09/21 15:45 FB',
+  '009668b8-7084-459b-a638-1a1441441a56' => 'Testing 09/21 15:45 FM',
+  '2c9f3dd7-733c-4ba6-9412-6d195ab8268a' => 'Testing 09/21 15:45 FC',
+  '61037302-3b9a-4e77-9caf-dffdbc336ee9' => 'Qualifying 09/25 08:00 GT1',
+  '4f5dcd6a-84ce-4940-8029-aedd9829c9f6' => 'Qualifying 09/25 08:00 T1',
+  '5e18b096-f323-4fc4-8038-b9eae075b466' => 'Qualifying 09/25 08:00 GT3',
+  '85fc2793-f279-418a-b21c-5520d670662e' => 'Qualifying 09/25 08:28 FM',
+  'cf959d7f-7e74-41ca-9c39-1ce7edf371cd' => 'Qualifying 09/25 08:28 FC',
+  '3e31eda0-03d7-400a-9fde-36436753d99d' => 'Qualifying 09/25 08:28 FE',
+  '2197d192-774c-424e-ae66-517816f1b7fc' => 'Qualifying 09/25 08:56 FA',
+  'd85bf51a-746f-4c3a-bd40-efe4c029b8a6' => 'Qualifying 09/25 08:56 P2',
+  '97be2084-23ad-46fe-8b01-6386dd49f29f' => 'Qualifying 09/25 09:24 GTL',
+  '796d051d-2585-420b-bea7-05ecdcd68f35' => 'Qualifying 09/25 09:24 EP',
+  '957cd301-9d1e-4bf5-a694-160c85db953f' => 'Qualifying 09/25 09:52 FV',
+  '955f79a7-710c-47f0-b7d7-cd9be050c77b' => 'Qualifying 09/25 10:20 SRF',
+  '3ad03247-f34d-4945-9b7f-0cafe62d6e40' => 'Qualifying 09/25 10:48 SM',
+  '52c66723-53d6-4d8b-a8b4-a22daa0278f3' => 'Qualifying 09/25 11:16 SM',
+  'df069ec7-21b0-474d-8964-12452c57fc8a' => 'Qualifying 09/25 11:44 T4',
+  '70bcfe46-bc97-486f-8539-4bae23a50e08' => 'Qualifying 09/25 13:02 SRF3',
+  '722a63eb-62a7-46ad-a5d0-58badd3a44ed' => 'Qualifying 09/25 13:30 SRF3',
+  '2b699bac-15ef-4eb5-8e57-2c8f45741770' => 'Qualifying 09/25 13:58 STL',
+  '1b1f2777-7cbf-423e-86a1-8a39b5a91b99' => 'Qualifying 09/25 14:26 F5',
+  'b89fec07-1822-43a3-958d-ec993fc97dcc' => 'Qualifying 09/25 14:26 FF',
+  '47626c8c-a909-40a7-bd86-ab2040a01a46' => 'Qualifying 09/25 14:54 FP',
+  '1b381884-8a1d-4e52-a563-ae80340fdf86' => 'Qualifying 09/25 15:22 AS',
+  '77527113-474b-44d2-91d3-5cbf52993d1b' => 'Qualifying 09/25 15:22 GT2',
+  '8db52404-5b42-4652-9990-660b0545fe8e' => 'Qualifying 09/25 15:50 T2',
+  'a41462c4-89e4-4f5d-99db-c0f2115b528e' => 'Qualifying 09/25 15:50 STU',
+  'c63f16e6-461f-44cf-be7f-572ff6128320' => 'Qualifying 09/25 16:18 T3',
+  '61e3ce2c-5dc1-46ad-af02-324085e725ed' => 'Qualifying 09/25 16:18 B-Spec',
+  '0147a1ad-cd40-4a6e-8a7b-ec24f1daa462' => 'Qualifying 09/25 16:46 HP',
+  '331e4219-118e-4523-8f98-1b5272fbf4b5' => 'Qualifying 09/25 17:14 FB',
+  '6c97ad91-6172-42ab-93a9-098c26587494' => 'Qualifying 09/25 17:14 P1',
+  '8cc5886d-1e64-4c66-84bb-5d3ec1573730' => 'Qualifying 09/26 08:00 FC',
+  '1a877800-1db9-47ca-a61c-9fea89db5295' => 'Qualifying 09/26 08:00 FE',
+  '318e1441-07fb-4e89-a936-99389633f1d3' => 'Qualifying 09/26 08:00 FM',
+  'e77e93d3-f016-48a9-94da-81fcfc5bd370' => 'Qualifying 09/26 08:28 FA',
+  '9dd6d790-bdb2-4cda-886c-c5b0f783285b' => 'Qualifying 09/26 08:28 P2',
+  'c786b8ee-4210-4cd8-8631-48db17def311' => 'Qualifying 09/26 08:56 T1',
+  '9b7aab51-f796-47d2-b09a-061a95bbb30a' => 'Qualifying 09/26 08:56 GT1',
+  '189b4379-c126-41bf-b4d5-3087620b9427' => 'Qualifying 09/26 08:56 GT3',
+  '776337c0-69fb-468c-9157-0fcfa1f46738' => 'Qualifying 09/26 09:24 EP',
+  '24856439-d991-43af-8220-70f9577e6373' => 'Qualifying 09/26 09:24 GTL',
+  '0be2175c-b658-4c2a-9d9c-764b9e09d7c4' => 'Qualifying 09/26 09:52 FV',
+  '099e88bb-23d9-4b0a-b5aa-93e239b4a586' => 'Qualifying 09/26 10:20 SRF',
+  '3080101c-180b-4834-b9ab-6ec192f4a101' => 'Qualifying 09/26 10:48 SM',
+  '28d67fb5-ebc5-41cb-9447-fce3d31ea1f5' => 'Qualifying 09/26 11:16 SM',
+  '82e66043-cd8a-4b71-a396-d24b15f46b82' => 'Qualifying 09/26 11:44 T4',
+  '994473de-4c9a-4f40-846e-bbc61496a974' => 'Qualifying 09/26 13:02 SRF',
+  'cf38853b-98d2-494b-8162-08662f1d40cb' => 'Qualifying 09/26 13:30 SRF',
+  '5f9af128-3af0-46db-9aee-625ecd0f5b3e' => 'Qualifying 09/26 13:58 STL',
+  'c5f39b20-612a-4ba5-86bc-7048af7b5ba9' => 'Qualifying 09/26 14:26 F5',
+  '8a9e00b5-6298-4d7e-bef6-b1bc30137f7b' => 'Qualifying 09/26 14:26 FF',
+  'd0555cf9-a724-4175-9c7b-4f9e438d3514' => 'Qualifying 09/26 14:54 FP',
+  '65098f89-1c50-423f-aab6-04b1c24e6667' => 'Qualifying 09/26 15:22 AS',
+  'f0a5d9eb-8f8d-4200-ba15-38e6ec574fd1' => 'Qualifying 09/26 15:22 GT2',
+  '4db4ea45-6073-496e-a05c-33fb84f16499' => 'Qualifying 09/26 15:50 T2',
+  '5eeeba89-479f-4db1-a6ed-b4b262c12920' => 'Qualifying 09/26 15:50 STU',
+  '56ba8565-99ae-4f34-ba35-86b34147803b' => 'Qualifying 09/26 16:18 HP',
+  '8824809e-44ce-429a-9412-0b606d70f0b6' => 'Qualifying 09/26 16:46 P1',
+  'd83b5f13-282a-4242-9fc4-762e3039e991' => 'Qualifying 09/26 16:46 FB',
+  '11ab70ac-2ef7-4df8-8a17-1286c95ede15' => 'Qualifying 09/26 17:14 B-Spec',
+  'e96fbf04-202a-4d2f-a5a0-f0ffc7bc8e09' => 'Qualifying 09/26 17:14 T3',
+  'fc53a324-62e2-4fd9-9e75-8bd0e4189b1b' => 'Qualifying 09/27 08:00 FA',
+  '5dba9ea6-86e2-49c6-b266-aaf446383816' => 'Qualifying 09/27 08:00 P2',
+  'a410222c-2f08-4624-bc3f-164f0d9f02a3' => 'Qualifying 09/27 08:28 GT1',
+  'dfb14060-9103-443e-9ba8-6c6ba0e7ffa8' => 'Qualifying 09/27 08:28 GT3',
+  'e8f45302-e51f-45b2-b51f-536e9167096c' => 'Qualifying 09/27 08:28 T1',
+  '06a4491f-c575-45d7-a8fe-ae05851ce9e5' => 'Qualifying 09/27 08:56 FC',
+  'a9ce39b7-1605-42c8-9bdc-d28de4f9dc48' => 'Qualifying 09/27 08:56 FE',
+  'b4cb197b-27c0-428d-a506-d937e9146a15' => 'Qualifying 09/27 08:56 FM',
+  '2f91c50a-0791-4358-8346-d037f4a0dfe4' => 'Qualifying 09/27 09:24 EP',
+  'e65e2266-3f84-4307-ad37-01da511a3d7e' => 'Qualifying 09/27 09:24 GTL',
+  '095f53a4-f4e3-4b26-a62c-d46257e8bbe8' => 'Qualifying 09/27 09:52 FV',
+  'ca09a19b-e8c5-4912-bf6a-fbf9a1d75aea' => 'Qualifying 09/27 10:20 SRF',
+  'cb4fbe74-4240-43af-b7b9-4ebda7d22618' => 'Qualifying 09/27 10:48 SM',
+  '4c5d4dc7-ccfe-4a44-839b-6922f831b4b0' => 'Qualifying 09/27 11:16 SM',
+  '96d08736-9760-45da-a664-2d0cef2f2c15' => 'Qualifying 09/27 11:44 T4',
+  '0e7456a2-103b-4286-bb73-ec21f6f8e0f7' => 'Qualifying 09/27 13:02 SRF3',
+  '6f343426-931f-4029-9510-6d8ecd1272db' => 'Qualifying 09/27 13:30 SRF3',
+  '1521474a-d550-4f75-bd77-53db9a0959e5' => 'Qualifying 09/27 13:58 STL',
+  '864cfea8-53f2-4eb3-87d2-5599bf801e75' => 'Qualifying 09/27 14:26 F5',
+  'bdcb9081-755c-456b-aec3-363152a20fa2' => 'Qualifying 09/27 14:26 FF',
+  '3ed05c1f-6a67-4f9a-85c2-3353eca965fc' => 'Qualifying 09/27 14:54 FP',
+  'ac319286-3434-4bf9-85ab-7abd1cdd3120' => 'Qualifying 09/27 15:22 GT2',
+  'f514605a-8f7b-4d45-8817-999efccf1da6' => 'Qualifying 09/27 15:22 AS',
+  '4c1fc567-6a48-4aaa-81ca-88f68726bc88' => 'Qualifying 09/27 15:50 STU',
+  '8ba48f0c-c5af-4dbc-9eb0-5d40142aa006' => 'Qualifying 09/27 15:50 T2',
+  '88647097-7a76-4b41-931b-0354cef4bf81' => 'Qualifying 09/27 16:18 P1',
+  '3d5470a3-369b-453e-9a7c-80837229deb1' => 'Qualifying 09/27 16:18 FB',
+  '88e703e8-4fd4-41c0-ac68-0ea8a7384010' => 'Qualifying 09/27 16:46 T3',
+  'b0d8142c-e3b6-41c0-9916-2b96018d665f' => 'Qualifying 09/27 16:46 B-Spec',
+  '603aca06-7acc-4a39-bdad-4c832a59db35' => 'Qualifying 09/27 17:14 HP',
+  'fb203e2b-957c-45e0-9e4c-492671edb4b5' => 'Qualifying 09/28 08:00 T1',
+  'c7614541-a488-42e4-be41-7bab67beb59c' => 'Qualifying 09/28 08:00 GT1',
+  'a9902a87-8c1e-40fd-b434-bee567c81c05' => 'Qualifying 09/28 08:00 GT3',
+  'd8075439-67b7-4548-b326-5d1f4fac1fd9' => 'Qualifying 09/28 08:28 FC',
+  '39adbc41-8c33-458f-a4b9-2ea0c4dc2f6a' => 'Qualifying 09/28 08:28 FE',
+  'e2bd3274-5510-40d7-a910-0472857eeccc' => 'Qualifying 09/28 08:28 FM',
+  'cd9f6749-21bd-4807-b2e2-27dea3a08174' => 'Qualifying 09/28 08:56 P2',
+  '6a91c213-5ec4-4459-85ca-989b2e7951d6' => 'Qualifying 09/28 08:56 FA',
+  'fc8e0b8f-56d3-4db8-9ea8-c58078931f51' => 'Qualifying 09/28 09:24 GTL',
+  '50a6ff3e-fecd-4439-88dd-565a17eb21e9' => 'Qualifying 09/28 09:24 EP',
+  '41564a3e-5c6e-4555-afce-ed86fc526e30' => 'Qualifying 09/28 09:52 FV',
+  '0c6c05f4-6eb9-4575-924a-7cf3a774abc7' => 'Qualifying 09/28 10:20 SRF',
+  '3c928b22-60f2-4ca5-bdf6-c6b7c51adce1' => 'Qualifying 09/28 10:48 SM',
+  'b7bcf7a9-077a-4b49-84da-c38120f73843' => 'Qualifying 09/28 11:16 SRF3',
+  '347b7cc9-d63c-47a1-af82-801a3f2ae1f6' => 'Qualifying 09/28 12:34 T4',
+  'f5cee7d8-76eb-405d-b92d-fed20d0321a6' => 'Qualifying 09/28 13:02 STL',
+  'a94d01bd-6c93-41e1-9d20-aa69abdaad9f' => 'Qualifying 09/28 13:30 F5',
+  '50e23a83-9001-4bea-a160-137fb0248d91' => 'Qualifying 09/28 13:30 FF',
+  '01ca8459-9a51-4bae-aa53-fe8d73cf9fbb' => 'Qualifying 09/28 13:58 FP',
+  'c57b70ba-2bb8-431c-9e36-f7b3bd02d1c9' => 'Qualifying 09/28 14:26 GT2',
+  '930175da-a90f-46ec-b178-c4c6e2bdc401' => 'Qualifying 09/28 14:26 AS',
+  'bab6303e-c351-4e72-845e-a63fce768460' => 'Qualifying 09/28 14:54 STU',
+  '7ca8de7b-a0fa-4f33-a05d-900221b63fd1' => 'Qualifying 09/28 14:54 T2',
+  '7df8de9c-7b74-4d62-9d11-9282988834be' => 'Qualifying 09/28 15:22 T3',
+  '40e3b227-d301-4c42-a5b3-477d16cfd71e' => 'Qualifying 09/28 15:22 B-Spec',
+  'fab05068-9680-435d-b2f4-f0f876d71586' => 'Qualifying 09/28 15:50 HP',
+  'c271de9e-e6ce-44f1-8e56-cefacea2b0c5' => 'Qualifying 09/28 16:18 P1',
+  '03f8e338-8876-4dee-88b4-444e9829abb7' => 'Qualifying 09/28 16:18 FB',
+  'c76e2f46-afb9-4189-a9a2-48eec123a6cf' => 'Qualifying 09/28 16:46 SM',
+  'e3f3362c-dfc1-46d1-948a-44b0f856521d' => 'Qualifying 09/28 17:11 SRF3',
+  '0637181b-a4fb-4c7d-a30f-f1b28168e55f' => 'Race 09/29 08:30 T1',
+  '3b8a34c4-5f8b-481f-b5ce-c713b0e7fe8f' => 'Race 09/29 09:35 P2',
+  '1b515c60-ecfd-4c7b-a842-0b5ba8fccf93' => 'Race 09/29 09:35 FA',
+  '684fcf6a-9bf8-4586-a33c-b4d83f829fd7' => 'Race 09/29 10:40 SRF',
+  '173e3695-a7c5-4c7c-bd0a-8d901d0c299b' => 'Race 09/29 11:45 SM',
+  'dff49f04-f182-416b-ab92-c8e5c0f4179e' => 'Race 09/29 13:30 FF',
+  'bf357d2e-04b5-4306-906f-526d580cf877' => 'Race 09/29 14:35 FP',
+  '7ad4f081-5ab2-44d4-bdd4-f51a2152114a' => 'Race 09/29 15:40 GT2',
+  '044be959-ab6e-4ca7-9e2e-6e8f8c392360' => 'Race 09/29 16:45 B-Spec',
+  '8427b7c1-d8f5-46f3-bb37-100f16c5919a' => 'Race 09/29 16:45 T3',
+  '9ec6782e-dd45-40c4-b6d9-23c84c64d755' => 'Race 09/30 08:30 GT3',
+  'be99e258-2bcd-4bfe-9652-3eb047bd66b4' => 'Race 09/30 09:35 FC',
+  '65c464eb-7fe1-4a5b-92f3-e7a9b73d91ce' => 'Race 09/30 09:35 FM',
+  '4194eab5-9808-4f83-95cc-9329d1f051ce' => 'Race 09/30 10:40 EP',
+  '9f92cfd5-93fe-48d1-9b48-88cc05058611' => 'Race 09/30 11:45 SRF3',
+  '27c375fc-a9c7-4306-b002-d41b61febe58' => 'Race 09/30 13:30 STL',
+  '56a18270-238f-45d3-aa42-1cc70407f286' => 'Race 09/30 14:35 AS',
+  '980d3c37-bd5d-4e4b-9475-90d48133e7e7' => 'Race 09/30 15:40 T2',
+  '75dfa414-ec56-4020-b8f1-a3c4faacfff9' => 'Race 09/30 16:45 FB',
+  'ea221b55-4e22-4686-b56e-1ca356a5a8de' => 'Race 09/30 16:45 P1',
+  '89f4e942-4378-48bb-9a51-fcf2eda2cc4a' => 'Race 10/01 08:30 FE',
+  '0375eb7f-9f9e-4693-959e-7ade05aa059f' => 'Race 10/01 09:35 GT1',
+  '1427d56b-2739-4803-ba09-b0068d271a24' => 'Race 10/01 10:40 FV',
+  '1d987228-ade2-4dc3-9d2d-da9875ef09b6' => 'Race 10/01 11:45 GTL',
+  '63d6e8cb-d850-4efc-858a-c8c772435d70' => 'Race 10/01 13:30 T4',
+  '2ed930d5-bce0-41ca-af63-b052a95247e4' => 'Race 10/01 14:35 F5',
+  '508df364-70cb-4dcc-89e7-4925bcdfc0ea' => 'Race 10/01 15:40 STU',
+  'edb86c5c-1e8f-43b9-b76b-2802f662b6a3' => 'Race 10/01 16:45 HP',
 );
 
 sub usage  {
   print STDERR @_, "\n" if @_;
-  print <<'EOF';
+  print <<"EOF";
 Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-o outdir] [-p printer]
                  [-rm] [file]
        actionmon [-dvx] [-H host] [-U user] [-P pass] [-o outdir] [-p printer]
@@ -222,6 +342,17 @@ sub parse_args () {
   $LoginURL = $URLBase . 'Login.aspx';
   $ListURL  = $URLBase . 'Actions.aspx';
   $GetURL   = $URLBase . 'GetAction.aspx?ActionNum=';
+
+  my $pwpath = "$ENV{HOME}/.runoffs_pw";
+  if (!$PASSWD && -f $pwpath) {
+    my $F = new IO::File($pwpath, O_RDONLY) or die "$pwpath: $!\n";
+    while (<$F>) {
+      chomp;
+      my @F = split;
+      $PASSWD = $F[1] if $F[0] eq 'action';
+    }
+    $F->close;
+  }
 }
 
 
@@ -267,7 +398,11 @@ sub parse_action ($;$) {
           ($$attrs{class} eq 'rgRow' || $$attrs{class} eq 'rgAltRow')) {
           my $rownum = $$attrs{id};
           $rownum =~ s/.*_//;
-          $action = { _rownum => $rownum };
+          $action = {
+            _rownum => $rownum,
+            logo_file => $LOGOFILE,
+            logo_data => $LOGODATA,
+          };
           unshift(@actions, $action);
 
         } elsif ($tag eq 'span' && $$attrs{id} =~ /RadGrid.*_ctl\d+_/) {
@@ -475,7 +610,7 @@ sub process_actions ($) {
 
     if ($DEBUG) {
       print STDERR "Action $aid:\n";
-      print STDERR map(sprintf("  %-20s  %s\n", "$_:", $$a{$_}), sort keys $a);
+      print STDERR map(sprintf("  %-20s  %s\n", "$_:", $$a{$_}), sort keys %$a);
       print STDERR "\n";
     }
 
@@ -519,6 +654,12 @@ sub get_data () {
 }
 
 parse_args;
+
+{
+  my $F = new IO::File($LOGOPATH, O_RDONLY);
+  if ($F) { $F->read($LOGODATA, ($F->stat())[7]) }
+  else    { warn "$LOGOPATH: $!\n" }
+}
 
 
 ## Fetch the data file
@@ -568,11 +709,52 @@ __DATA__
   FieldFont 4.50 inch vpos moveto show
 } def
 
+/BeginEPSF { %def
+  /b4_Inc_state save def                % Save state for cleanup
+  /dict_count countdictstack def        % Count objects on dict stack
+  /op_count count 1 sub def             % Count objects on operand stack
+  userdict begin                        % Push userdict on dict stack
+  /showpage { } def                     % Redefine showpage, { } = null proc
+  0 setgray 0 setlinecap                % Prepare graphics state
+  1 setlinewidth 0 setlinejoin
+  10 setmiterlimit [ ] 0 setdash newpath
+  /languagelevel where                  % If level not equal to 1 then
+  {pop languagelevel                    % set strokeadjust and
+  1 ne                                  % overprint to their defaults.
+    {false setstrokeadjust false setoverprint
+    } if
+  } if
+} bind def
+
+/EndEPSF { %def
+  count op_count sub {pop} repeat       % Clean up stacks
+  countdictstack dict_count sub {end} repeat
+  b4_Inc_state restore
+} bind def
 %%EndProlog
 %%BeginSetup
 %%IncludeResource: font Helvetica-Bold
 %%EndSetup
 %%Page: 1 1
+
+% Runoffs Logo -- copy bbox from logo EPS header
+/logo_bbox {14 14 344 250} def
+/logo_scale 0.30 def
+
+BeginEPSF
+% logo_bbox
+% 3 -1 roll sub logo_scale mul 10.75 inch exch sub
+% 3 1 roll exch sub logo_scale mul 8.25 inch exch sub
+% exch translate
+.25 inch 10.75 inch
+logo_bbox exch pop exch sub exch pop
+logo_scale mul sub translate
+logo_scale dup scale
+logo_bbox pop pop neg exch neg exch translate
+%%BeginDocument: @logo_file@
+@logo_data@
+%%EndDocument
+EndEPSF
 
 % Page Title
 TitleFont
@@ -587,7 +769,7 @@ moveto show
 (Received)            (@act_datetime@)     Field2 newline
 (Type)                (@act_type@)         Field
 (Initiated By)        (@act_initiated_by@) Field2 newline
-(Session)             ()                   Field  newline
+(Session)             (@_session@)         Field  newline
 @__entries__@
 (Penalty)             (@act_tech_penalty@) Field  newline
 (GCR/Supp Ref.)       (@act_gcr_section@)  Field  newline

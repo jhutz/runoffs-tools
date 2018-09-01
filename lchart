@@ -1,0 +1,24 @@
+#!/bin/sh
+# usage: lchart <group> <passings>
+
+basedir=$(dirname $(realpath $0))/..
+chartdir=${basedir}/Results/Charts
+workdir=${basedir}/Working
+
+#group=$(echo $1 | tr a-z A-Z)
+group="$1"
+gfile=$(echo $group | sed -e 's#/#,#g')
+passings="$2"
+
+date=$(grep "^$group", $basedir/Documentation/schedule.csv | cut -d, -f6 | cut -d\  -f1)
+time=$(grep "^$group", $basedir/Documentation/schedule.csv | cut -d, -f6 | cut -d\  -f2)
+if [ -z "$date" -o -z "$time" ] ; then
+  echo "Unknown group $group"
+  exit 1
+fi
+day=$(date -d$date +'%A, %B %-d, %Y')
+
+chartroom -C "$2" "$chartdir/$gfile.crx" group="$group" date="$day" time="$time"
+chartroom -P "$chartdir/$gfile.crx" /tmp/chart/$gfile.ps
+ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs2017 Race Lapchart.pdf"
+chartroom "$chartdir/$gfile.crx" &

@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+use IO::File;
+use Text::CSV;
+use strict;
+
+our @KeyCols = ('Class', 'Member ID');
+sub usage {
+  print STDERR @_, "\n" if @_;
+  print <<"EOF";
+usage: reg_apply [patch...]
+       reg_apply -h
+  -h  This help message
+EOF
+  exit !!@_;
+}
+
+sub parse_args () {
+  my %opts;
+
+  getopts('h', \%opts) or usage("Invalid option!");
+  usage()    if $opts{h};
+}
+
+sub load_csv () {
+  my $F = \*STDIN;
+  my $head = <$F>;
+  my $C = new Text::CSV( { binary => 1,
+      quote_space => 0,
+      quote_binary => 0,
+      ($head =~ /\t/) ? (
+        sep_char    => "\t",
+        quote_char  => undef,
+        escape_char => undef,
+      ) : ()
+    });
+  $C->parse($head) or die "failed parsing data column headers\n";
+  $C->column_names($C->fields());
+
+  my $rows = [];
+  my $data = {};
+  while (my $hr = $C->getline_hr($F)) {
+    #print STDERR '.';
+    my $key = join('_', map($$hr{$_}, @KeyCols));
+    $$data{$key} = $hr;
+    push(@$rows, $hr);
+  }
+  $C->error_diag();
+  $F->close;
+  ($data, $rows, $C);
+}
+
+parse_args;
+
+my($data, $rows, $C) = load_csv;
+
+
+foreach my $patch (@ARGV) {
+  my $F = new IO::File($patch, O_RDONLY) or die "$patch: $!\n";
+  my $IN = new Text::CSV( { binary => 1 });
+  $IN->column_names($IN->getline($F));
+  while (my $hr = $IN->getline_hr($F)) {
+    my $key = $$hr{key};
+    my $col = $$hr{field};
+    next if $col eq '+added+';
+    if (!exists($$data{$key})) {
+      print STDERR "$key: row not found\n";
+    } elsif (!exists($$data{$key}{$col})) {
+      print STDERR "$key: no column '$col'\n";
+    } elsif ($$data{$key}{$col} ne $$hr{old}) {
+      print STDERR "$key: $col is not '$$hr{old}'\n";
+    } else {
+      $$data{$key}{$col} = $$hr{new};
+    }
+  }
+  $IN->error_diag();
+  $F->close;
+}
+
+binmode STDOUT, ':utf8';
+$C->eol("\r\n");
+$C->print(\*STDOUT, [ $C->column_names() ]);
+foreach (@$rows) {
+  $C->print_hr(\*STDOUT, $_);
+}

@@ -1,0 +1,374 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+use IO::File;
+
+use strict;
+use vars qw($DEBUG $QUIET $VERBOSE $OUT $KeyOUT $TabOUT);
+use vars qw(@QGroups @RGroups %YearClasses %EngineClasses %FixedMM %Words);
+use vars qw(%ColNames %Validate);
+use vars qw(@Cols %Cols %QualGroup %QualSub %RaceGroup %Keys);
+use vars qw($format $carno $class $name);
+
+# Qualifying Groups (except single classes)
+@QGroups = qw(GT1/T1/GT3 FE/FM/FC FA/P2 EP/GTL FF/F5
+  GT2/AS STU/T2 T3/B-Spec P1/FB);
+
+# Race Groups (except single classes and qual groups racing all together)
+@RGroups = qw(FC/FM);
+
+%YearClasses   = map(($_ => 1), qw(EP FP HP SM T1 T2 T3 T4));
+%EngineClasses = map(($_ => 1), qw(F5 FA FB FF P1 P2));
+
+%FixedMM = (
+  FE   => [ 'Mazda', 'FE' ],
+  FM   => [ 'Star',  'Formula Mazda' ],
+  SM   => [ 'Mazda', 'Miata' ],
+  SRF  => [ 'SCCA',  'Spec Racer Ford' ],
+  SRF3 => [ 'SCCA',  'Spec Racer Ford Gen 3' ],
+);
+
+## Columns we have special interest in
+## RHS of these must be filled in with the actual column header
+%ColNames = (
+  first    => 'First Name',
+  last     => 'Last Name',
+  email    => 'Email',
+  city     => 'City',
+  state    => 'State',
+  member   => 'Member ID',
+  class    => 'Class',
+  car      => 'Vehicle #',
+  year     => 'Vehicle Year',
+  txno     => 'Transponder',
+  make     => 'Official Make',
+  model    => 'Official Model',
+  engine   => 'Engine Make',
+  color    => 'Official Color',
+  sponsor  => 'Sponsor',
+);
+
+sub usage {
+  print STDERR @_, "\n" if @_;
+  print <<"EOF";
+usage: reg_check [-dqv] [-o out [-kt]] [file...]
+       reg_check -h
+  -d  Debug
+  -h  This help message
+  -q  Suppress issues not for registration
+  -v  Report minor issues and auto-corrections
+
+  -o  output corrected data to file
+  -k  add entry key column
+  -t  output in tab-separated format
+EOF
+  exit !!@_;
+}
+
+sub parse_args () {
+  my %opts;
+
+  getopts('dhkqtvo:', \%opts) or usage("Invalid option!");
+  usage()    if $opts{h};
+  $DEBUG++   if $opts{d};
+  $QUIET++   if $opts{q};
+  $VERBOSE++ if $opts{v};
+  $KeyOUT++  if $opts{k};
+  $TabOUT = $opts{t} ? "\t" : ',';
+
+  if ($opts{o}) {
+    $OUT = new IO::File($opts{o}, O_WRONLY|O_CREAT|O_TRUNC, 0666)
+      or die "$opts{o}: $!\n";
+  }
+}
+
+$format = "%-6s  %3s  %-20.20s  %s";
+
+sub problem {
+  my $x = sprintf($format, $class, $carno, $name, join('', @_));
+  $x =~ s/\s*$//;
+  print "$x\n";
+}
+
+sub v_nonblank ($$;$) {
+  my($field, $value, $clsdep) = @_;
+  $clsdep = $clsdep ? " for $class" : '';
+  problem("Missing $field$clsdep") unless $value =~ /\S/;
+  $value;
+}
+
+sub v_numeric ($$) {
+  my($field, $value) = @_;
+  problem("Non-numeric $field ($value)") if $value =~ /\D/;
+  $value;
+}
+
+sub v_upper ($$) {
+  my($field, $value) = @_;
+  if ($value =~ /[a-z]/) {
+    problem("Non-uppercase $field ($value)") if $VERBOSE;
+    $value =~ tr/a-z/A-Z/;
+  }
+  $value;
+}
+
+%Words = (
+  bmw           => 'BMW',
+  deimen        => 'Diemen',
+  is            => 'is',
+  mazdaspeed    => 'MazdaSpeed',
+  spece46       => 'SpecE46',
+  sthor         => 'Stohr',
+  vandeimen     => 'Van Diemen',
+  vandiemen     => 'Van Diemen',
+  wf1           => 'WF1',
+  'nissan/datsun' => 'Datsun',
+);
+sub v_namecaps ($$;$) {
+  my($field, $value, $lname) = @_;
+  my @words = split(/([^A-Za-z0-9]+)/, $value);
+  my($newvalue, $problems);
+
+  if ($value =~ /[^ -~]/) {
+    problem("Non-ASCII $field ($value)") unless $QUIET;
+    return $value;
+  }
+
+  while (@words) {
+    my $word = shift @words;
+    if ($word =~ /^[Ss]i$/) {
+      # Super-special case
+      $newvalue .= $word;
+    } elsif (exists($Words{lc($word)})) {
+      # Special cases
+      $problems++ unless $word eq $Words{lc($word)};
+      $newvalue .= $Words{lc($word)};
+    } elsif ($word !~ /[a-z]/ || $word =~ /^(De|Di|La|Le|Lo|Mc|Mac)?[^a-z][^A-Z]*$/) {
+      # well-formed word
+      $newvalue .= $word;
+    } elsif (grep($_ eq $word, qw(de del du in the von)) && @words
+      && ($lname || $newvalue ne '')) {
+      # special-case lowercase words
+      $newvalue .= $word;
+    } else {
+      my $nword = ucfirst(lc($word));
+      #print STDERR "$word => $nword\n";
+      $newvalue .= $nword;
+      $problems++;
+    }
+  }
+  problem("$field bad case ($value)") if $problems && !$QUIET;
+  $newvalue;
+}
+sub v_lname ($$) { v_namecaps($_[0], $_[1], 1) }
+
+sub v_comma ($$) {
+  my($field, $value) = @_;
+  if ($value =~ s#,#/#g) {
+    problem("$field: change commas to slashes") if $VERBOSE;
+  }
+  $value;
+}
+
+sub v_slash ($$) {
+  my($field, $value) = @_;
+  $value =~ s{\s*/\s*}{/};
+  $value;
+}
+
+sub v_year ($$) {
+  my($field, $value) = @_;
+  if ($value eq '0') {
+    problem("$field is 0") if $VERBOSE;
+    $value = '';
+  }
+  #$value = v_nonblank($field, $value, 1) if $YearClasses{$class};
+  $value;
+}
+
+sub v_nb_engine ($$) {
+  my($field, $value) = @_;
+  if ($EngineClasses{$class}) {
+    v_nonblank($field, $value, 1);
+  } else {
+    '';
+  }
+}
+
+sub v_email ($$) {
+  my($field, $value) = @_;
+  my($hostname, @labels);
+
+  if ($value =~ /\@([A-Z0-9.-]+)$/i) {
+    $hostname = $1;
+    $hostname =~ s/\.*$//;
+    @labels = split(/\./, $hostname);
+  }
+  if (@labels < 2 || grep(/^$/, @labels)) {
+    problem("<$value> doesn't look like an email address");
+  }
+  $value;
+}
+
+sub v_carno ($$) {
+  my($field, $value) = @_;
+  problem("Invalid $field: $value") unless $value =~ /^(1?[0-9])?[0-9]$/;
+  $value;
+}
+
+sub v_memberid ($$) {
+  my($field, $value) = @_;
+  problem("Strange member ID: $value") if $value =~ /[^0-9_]/;
+  $value;
+}
+
+sub v_txno ($$) {
+  my($field, $value) = @_;
+  $value =~ s/^0*//;
+
+  if ($value < 100 || ($value >= 10000 && $value < 11000)
+    || $value eq substr('123456789', 0, length($value))
+    || $value =~ /^([1-9])\1*$/) {
+    problem("Strange transponder # $value");
+  }
+  $value;
+}
+
+sub v_bspec ($$) {
+  my($field, $value) = @_;
+  if ($value =~ s/^(bs|bspec|b-spec)$/B-Spec/i && $value ne 'B-Spec') {
+    problem("$field B-Spec misspelled as $value") if $VERBOSE;
+  }
+  $value;
+}
+
+sub v_fixed_mm ($$$) {
+  my($field, $value, $ix) = @_;
+  if (exists($FixedMM{$class}) && $value ne $FixedMM{$class}[$ix]) {
+    problem("Incorrect $field ($value) for class $class") if $VERBOSE;
+    $value = $FixedMM{$class}[$ix];
+  }
+  $value;
+}
+
+sub v_fixed_make  ($$) { v_fixed_mm($_[0], $_[1], 0) }
+sub v_fixed_model ($$) { v_fixed_mm($_[0], $_[1], 1) }
+
+## Validation functions for each field
+## RHS is a list of validation functions
+%Validate = (
+  first    => [ \&v_nonblank,  \&v_namecaps,  ],
+  last     => [ \&v_nonblank,  \&v_lname,     ],
+  city     => [ \&v_nonblank,  \&v_namecaps,  ],
+  state    => [ \&v_nonblank,  \&v_upper,     ],
+  car      => [ \&v_nonblank,  \&v_numeric,   \&v_carno ],
+  year     => [ \&v_year,      \&v_numeric,   ],
+  txno     => [ \&v_nonblank,  \&v_numeric,   \&v_txno  ],
+  email    => [ \&v_nonblank,  \&v_email,     ],
+  member   => [ \&v_nonblank,  \&v_memberid,  ],
+  class    => [ \&v_nonblank,  \&v_bspec,     ],
+  color    => [ \&v_nonblank,  \&v_comma,     ],
+  sponsor  => [ \&v_comma,     \&v_slash,     ],
+  make     => [ \&v_nonblank,  \&v_namecaps,  \&v_fixed_make  ],
+  model    => [ \&v_nonblank,  \&v_namecaps,  \&v_fixed_model ],
+  engine   => [ \&v_nb_engine, \&v_namecaps,  ],
+);
+
+# Qualifying Groups (except single classes)
+foreach my $group (@QGroups) {
+  if ($group =~ m#//#) {
+    foreach my $sub (split(m#//#, $group)) {
+      next unless $sub =~ m#/#;
+      foreach my $class (split(m#/#, $sub)) {
+        $QualSub{$class} = $sub;
+      }
+    }
+  } else {
+    foreach my $class (split(/\/+/, $group)) {
+      $QualGroup{$class} = $group;
+    }
+  }
+}
+
+foreach my $group (@RGroups) {
+  foreach my $class (split(/\//, $group)) {
+    $RaceGroup{$class} = $group;
+  }
+}
+
+parse_args;
+
+# Read the header
+{
+  $_ = <>;
+  s/\r?\n$//;
+  @Cols = split(/\t/, $_);
+  my %fields = map(($Cols[$_] => $_), 0 .. @Cols-1);
+  foreach (keys %ColNames) {
+    $Cols{$_} = $fields{$ColNames{$_}};
+  }
+  if ($OUT) {
+    print $OUT "MKEY${TabOUT}CKEY${TabOUT}" if $KeyOUT;
+    print $OUT join($TabOUT, @Cols), "\r\n";
+  }
+}
+
+# Load the data and look for problems
+printf("$format\n", qw(Class Car Name Problem));
+printf("$format\n", map(('=' x $_), qw(6 3 20 25)));
+while (<>) {
+  s/\r?\n$//;
+  my @fields = split(/\t/, $_);
+  $carno = $fields[$Cols{car}];
+  $class = $fields[$Cols{class}];
+  $name = join(' ', $fields[$Cols{first}], $fields[$Cols{last}]);
+  my $qgroup = $QualGroup{$class};
+  my $qsub   = $QualSub{$class};
+  my $rgroup = $RaceGroup{$class};
+
+  # Data validation/repair
+  foreach my $field (sort keys %Validate) {
+    my $value = $fields[$Cols{$field}];
+    foreach my $cb (@{$Validate{$field}}) {
+      $value = $cb->($ColNames{$field}, $value);
+    }
+    $fields[$Cols{$field}] = $value;
+  }
+
+  # Collect counts for duplicate checks
+  my $mcx = join(' ', map("$_:$fields[$Cols{$_}]", qw(member car txno)));
+  foreach my $f (qw(member car txno)) {
+    next unless $fields[$Cols{$f}] ne '';
+    foreach ($class, $qgroup, $qsub, $rgroup) {
+      next unless defined $_;
+      $Keys{join(':', $_, $f, $fields[$Cols{$f}])} ||= [];
+      push(@{$Keys{join(':', $_, $f, $fields[$Cols{$f}])}}, $mcx);
+    }
+  }
+
+  # Generic format checks
+  foreach (0 .. @Cols - 1) {
+    problem($Cols[$_], ' contains a comma') if $fields[$_] =~ s/,//g && $VERBOSE;
+    problem($Cols[$_], ' contains a quote') if $fields[$_] =~ s/"//g && $VERBOSE;
+  }
+
+  if ($OUT) {
+    if ($KeyOUT) {
+      print $OUT "$fields[$Cols{class}]_$fields[$Cols{member}]$TabOUT";
+      print $OUT "$fields[$Cols{class}]_$fields[$Cols{car}]$TabOUT";
+    }
+    print $OUT join($TabOUT, @fields), "\r\n";
+  }
+}
+
+print "\nDuplicates:\n";
+print " #  Group         Item      Value            Details\n";
+print "==  ============  ========  ===============  ==========\n";
+foreach (grep(@{$Keys{$_}} > 1, keys %Keys)) {
+  my @mcx = @{$Keys{$_}};
+
+  printf("%2d  %-12s  %-8s  %-15s %s\n", scalar(@mcx), split(/:/, $_, 3), $mcx[0]);
+  foreach my $mcx (@mcx[1..$#mcx]) {
+    print ' ' x 44, $mcx, "\n";
+  }
+}
