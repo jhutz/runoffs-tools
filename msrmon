@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import itertools
+import argparse
+import configparser
+import requests
+
+
+"""
+  -d (debug)
+  -h (help)
+
+  -U userid
+  -P password
+  -O org-uid
+  -E event-uid
+  -S segment-uid
+"""
+
+
+def load_config(opts):
+    """Load the config file, if any, and provide default values for options."""
+    global config
+    config = {}
+    if opts.config is None:
+        if 'HOME' in os.environ:
+            def_cfg = os.path.join(os.environ['HOME'], '.msrmon')
+        else:
+            def_cfg = '.msrmon'
+        if os.path.exists(def_cfg):
+            opts.config = def_cfg
+    if opts.config is not None:
+        cp = configparser.ConfigParser()
+        with open(opts.config) as lines:
+            cp.read_file(itertools.chain(("[top]",), lines))
+        config = cp.items('top')
+    # certain global options can be pre-set in the config file
+    for k in ('userid', 'password', 'pwfile', 'org-id', 'event-id', 'segment-id'):
+        if k in config and opts.k is None:
+            opts.k = config[k]
+    if opts.password is None and opts.pwfile is not None:
+        with open(opts.pwfile) as pwfile:
+            opts.password = pwfile.readline()
+
+def msr_get(opts, query, params={}):
+    global msr_session
+    if 'msr_session' not in globals():
+        msr_session = requests.Session()
+        msr_session.auth = (opts.userid, opts.password)
+        msr_session.headers.update({ 'X-Organization-Id' : opts.org_id })
+    r = msr_session.get('https://%s/rest/%s.json' % (opts.server, query), params = params)
+    r.raise_for_status()
+    return r.json()
+
+def do_list_events(opts, error_cb):
+    j = msr_get(opts, 'calendars/organization/%s' % opts.org_id)
+    print('%-35s  %s' % ('Event ID', 'Name'))
+    for event in j['response']['events']:
+        print('%-35s  %s' % (event['id'], event['name']))
+
+def do_list_segments(opts, error_cb):
+    if opts.event_id is None:
+        error_cb('Event ID is required')
+    j = msr_get(opts, 'events/%s/segments' % opts.event_id)
+    if opts.debug: print(j, file=sys.stderr)
+    print('%-35s  %s' % ('Segment ID', 'Name'))
+    for seg in j['response']['segments']:
+        print('%-35s  %s' % (seg['id'], seg['name']))
+        if opts.verbose:
+            class_map = { x['id'] : x['shortName'] for x in seg['classes'] }
+            for grp in sorted(seg['groups'], key=lambda x: x['shortName']):
+                classes = [ class_map[x['classId']]
+                        for x in seg['classToGroupMaps'] if x['groupId'] == grp['id'] ]
+                if len(classes) > 0:
+                    print('    ', grp['shortName'], '('+', '.join(sorted(classes))+')')
+                else:
+                    print('    ', grp['shortName'])
+
+def process_args():
+    ap = argparse.ArgumentParser(usage='%(prog)s [options] command [args...]')
+    sp = ap.add_subparsers(title='subcommands', metavar=None)
+    ap._optionals.title = 'Options'
+    
+    ap.add_argument('-d', '--debug', action='store_true',
+            help='Enable debugging')
+    ap.add_argument('-v', '--verbose', action='store_true',
+            help='Enable verbose output')
+    ap.add_argument('--server', help='MotorsportReg API server',
+            default='api.motorsportreg.com')
+    ap.add_argument('-U', '--userid',     help='MotorsportReg username')
+    ap.add_argument('-P', '--password',   help='MotorsportReg password')
+    ap.add_argument(      '--pwfile',     help='File containing MotorsportReg password')
+    ap.add_argument('-O', '--org-id',     help='Organization ID')
+    ap.add_argument('-E', '--event-id',   help='Event ID')
+    ap.add_argument('-S', '--segment-id', help='Segment ID')
+    ap.add_argument('-c', '--config',     help='Config file')
+
+    p = sp.add_parser('list_events', help='List available events from MSR')
+    p.set_defaults(func=do_list_events)
+
+    p = sp.add_parser('list_segments', help='List event segments')
+    p.set_defaults(func=do_list_segments)
+
+    opts = ap.parse_args()
+    if not hasattr(opts, 'func'):
+        ap.error('Missing subcommand')
+
+    load_config(opts)
+    if opts.org_id is None:
+        ap.error('Organization ID is required')
+    opts.func(opts, ap.error)
+
+process_args()
