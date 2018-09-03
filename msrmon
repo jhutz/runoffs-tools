@@ -35,11 +35,12 @@ def load_config(opts):
         cp = configparser.ConfigParser()
         with open(opts.config) as lines:
             cp.read_file(itertools.chain(("[top]",), lines))
-        config = cp.items('top')
+        config = cp['top']
     # certain global options can be pre-set in the config file
-    for k in ('userid', 'password', 'pwfile', 'org-id', 'event-id', 'segment-id'):
-        if k in config and opts.k is None:
-            opts.k = config[k]
+    for key in ('userid', 'password', 'pwfile', 'org-id', 'event-id', 'segment-id'):
+        okey = key.replace('-','_')
+        if key in config and getattr(opts, okey, None) is None:
+            setattr(opts, okey, config[key])
     if opts.password is None and opts.pwfile is not None:
         with open(opts.pwfile) as pwfile:
             opts.password = pwfile.readline()
