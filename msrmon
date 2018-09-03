@@ -8,18 +8,6 @@ import configparser
 import requests
 
 
-"""
-  -d (debug)
-  -h (help)
-
-  -U userid
-  -P password
-  -O org-uid
-  -E event-uid
-  -S segment-uid
-"""
-
-
 def load_config(opts):
     """Load the config file, if any, and provide default values for options."""
     global config
@@ -109,6 +97,13 @@ def do_dump_changes(opts):
                 params = { 'segment' : opts.segment_id })
         print(j)
 
+def do_help(opts, ap):
+    if (opts.subcommand is not None):
+        ap.parse_args([opts.subcommand, '--help'])
+    else:
+        ap.print_help()
+    ap.exit()
+
 def process_args():
     ap = argparse.ArgumentParser(usage='%(prog)s [options] command [args...]')
     sp = ap.add_subparsers(title='subcommands', metavar=None)
@@ -127,6 +122,11 @@ def process_args():
     ap.add_argument('-E', '--event-id',   help='Event ID')
     ap.add_argument('-S', '--segment-id', help='Segment ID')
     ap.add_argument('-c', '--config',     help='Config file')
+
+    p = sp.add_parser('help', help='Show help message or subcommand help')
+    p.add_argument('subcommand', nargs='?', help='Subcommand to show help for')
+    p.set_defaults(_func = do_help)
+    p.set_defaults(_args = (ap,))
 
     p = sp.add_parser('list_events', help='List available events from MSR')
     p.add_argument('--archive', action='store_true', help='Show old events')
