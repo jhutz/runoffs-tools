@@ -59,12 +59,6 @@ def msr_get(opts, query, params={}):
     r.raise_for_status()
     return r.json()
 
-def get_assign(opts, auid):
-    sess = msr_session(opts)
-    r = sess.get('https://%s/scca/runoffs.cfm' % opts.server, params = { 'id' : auid })
-    r.raise_for_status()
-    return r.json()
-
 def do_list_events(opts, error_cb):
     j = msr_get(opts, 'calendars/organization/%s' % opts.org_id,
             params = { 'archive' : 'true' } if opts.archive else {})
@@ -94,15 +88,19 @@ def do_list_segments(opts, error_cb):
 def do_dump_assigns(opts, error_cb):
     if opts.event_id is None:
         error_cb('Event ID is required')
+    # XXX No support for profile_questions yet 9/2/2018
+    #fields = 'profile,profile_questions,modifications,vehicle_questions'
+    fields = 'profile,modifications,vehicle_questions'
+
     if opts.items is not None and len(opts.items) > 0:
+        # XXX No support for individual assignment fetch yet 9/2/2018
         for item in opts.items:
-            j = get_assign(opts, item)
+            j = msr_get(opts, 'events/%s/assignments/%s' %
+                    (opts.event_id, auid), params = { 'fields' : fields })
             print(j)
     else:
         j = msr_get(opts, 'events/%s/segments/%s/assignments' %
-                (opts.event_id, opts.segment_id),
-                params = { 'fields' :
-                    'vehicle_questions,modifications,profile,profile_questions' })
+                (opts.event_id, opts.segment_id), params = { 'fields' : fields })
         print(j)
 
 def do_dump_changes(opts, error_cb):
