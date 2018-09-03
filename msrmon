@@ -44,13 +44,17 @@ def load_config(opts):
         with open(opts.pwfile) as pwfile:
             opts.password = pwfile.readline()
 
+def msr_session(opts):
+    global g_msr_session
+    if 'g_msr_session' not in globals():
+        g_msr_session = requests.Session()
+        g_msr_session.auth = (opts.userid, opts.password)
+        g_msr_session.headers.update({ 'X-Organization-Id' : opts.org_id })
+    return g_msr_session
+
 def msr_get(opts, query, params={}):
-    global msr_session
-    if 'msr_session' not in globals():
-        msr_session = requests.Session()
-        msr_session.auth = (opts.userid, opts.password)
-        msr_session.headers.update({ 'X-Organization-Id' : opts.org_id })
-    r = msr_session.get('https://%s/rest/%s.json' % (opts.server, query), params = params)
+    sess = msr_session(opts)
+    r = sess.get('https://%s/rest/%s.json' % (opts.server, query), params = params)
     r.raise_for_status()
     return r.json()
 
