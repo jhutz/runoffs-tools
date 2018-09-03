@@ -59,7 +59,7 @@ def msr_get(opts, query, params={}):
     r.raise_for_status()
     return r.json()
 
-def do_list_events(opts, error_cb):
+def do_list_events(opts):
     j = msr_get(opts, 'calendars/organization/%s' % opts.org_id,
             params = { 'archive' : 'true' } if opts.archive else {})
     if opts.debug: print(j, file=sys.stderr)
@@ -67,9 +67,7 @@ def do_list_events(opts, error_cb):
     for event in j['response']['events']:
         print('%-35s  %s' % (event['id'], event['name']))
 
-def do_list_segments(opts, error_cb):
-    if opts.event_id is None:
-        error_cb('Event ID is required')
+def do_list_segments(opts):
     j = msr_get(opts, 'events/%s/segments' % opts.event_id)
     if opts.debug: print(j, file=sys.stderr)
     print('%-35s  %s' % ('Segment ID', 'Name'))
@@ -85,9 +83,7 @@ def do_list_segments(opts, error_cb):
                 else:
                     print('    ', grp['shortName'])
 
-def do_dump_assigns(opts, error_cb):
-    if opts.event_id is None:
-        error_cb('Event ID is required')
+def do_dump_assigns(opts):
     # XXX No support for profile_questions yet 9/2/2018
     #fields = 'profile,profile_questions,modifications,vehicle_questions'
     fields = 'profile,modifications,vehicle_questions'
@@ -103,11 +99,7 @@ def do_dump_assigns(opts, error_cb):
                 (opts.event_id, opts.segment_id), params = { 'fields' : fields })
         print(j)
 
-def do_dump_changes(opts, error_cb):
-    if opts.event_id is None:
-        error_cb('Event ID is required')
-    if opts.segment_id is None:
-        error_cb('Segment ID is required')
+def do_dump_changes(opts):
     if opts.items is not None and len(opts.items) > 0:
         for item in opts.items:
             j = msr_get(opts, 'events/%s/feeds/timing/%s' % (opts.event_id, item))
@@ -138,26 +130,35 @@ def process_args():
 
     p = sp.add_parser('list_events', help='List available events from MSR')
     p.add_argument('--archive', action='store_true', help='Show old events')
-    p.set_defaults(func=do_list_events)
+    p.set_defaults(_func = do_list_events)
+    p.set_defaults(_required = ('org-id',))
 
     p = sp.add_parser('list_segments', help='List event segments')
-    p.set_defaults(func=do_list_segments)
+    p.set_defaults(_func = do_list_segments)
+    p.set_defaults(_required = ('org-id', 'event-id'))
 
     p = sp.add_parser('dump_assigns', help='Dump all raw assignment data')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
-    p.set_defaults(func=do_dump_assigns)
+    p.set_defaults(_func = do_dump_assigns)
+    p.set_defaults(_required = ('org-id', 'event-id'))
 
     p = sp.add_parser('dump_changes', help='Dump all raw change data')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to dump')
-    p.set_defaults(func=do_dump_changes)
+    p.set_defaults(_func = do_dump_changes)
+    p.set_defaults(_required = ('org-id', 'event-id','segment-id'))
 
     opts = ap.parse_args()
-    if not hasattr(opts, 'func'):
+    if not hasattr(opts, '_func'):
         ap.error('Missing subcommand')
-
     load_config(opts)
-    if opts.org_id is None:
-        ap.error('Organization ID is required')
-    opts.func(opts, ap.error)
+
+    required = set(getattr(opts, '_required', ()))
+    missing = [ x for x in required if getattr(opts, x.replace('-', '_'), None) is None ]
+    if len(missing) > 0:
+        for x in missing: sys.stderr.write("--%s is required\n" % x)
+        ap.print_usage(file=sys.stderr)
+        ap.exit(status=2)
+
+    opts._func(opts, *getattr(opts, '_args', ()))
 
 process_args()
