@@ -55,7 +55,9 @@ def msr_get(opts, query, params={}):
     return r.json()
 
 def do_list_events(opts, error_cb):
-    j = msr_get(opts, 'calendars/organization/%s' % opts.org_id)
+    j = msr_get(opts, 'calendars/organization/%s' % opts.org_id,
+            params = { 'archive' : 'true' } if opts.archive else {})
+    if opts.debug: print(j, file=sys.stderr)
     print('%-35s  %s' % ('Event ID', 'Name'))
     for event in j['response']['events']:
         print('%-35s  %s' % (event['id'], event['name']))
@@ -98,6 +100,7 @@ def process_args():
     ap.add_argument('-c', '--config',     help='Config file')
 
     p = sp.add_parser('list_events', help='List available events from MSR')
+    p.add_argument('--archive', action='store_true', help='Show old events')
     p.set_defaults(func=do_list_events)
 
     p = sp.add_parser('list_segments', help='List event segments')
