@@ -58,6 +58,12 @@ def msr_get(opts, query, params={}):
     r.raise_for_status()
     return r.json()
 
+def get_assign(opts, auid):
+    sess = msr_session(opts)
+    r = sess.get('https://%s/scca/runoffs.cfm' % opts.server, params = { 'id' : auid })
+    r.raise_for_status()
+    return r.json()
+
 def do_list_events(opts, error_cb):
     j = msr_get(opts, 'calendars/organization/%s' % opts.org_id,
             params = { 'archive' : 'true' } if opts.archive else {})
@@ -84,6 +90,34 @@ def do_list_segments(opts, error_cb):
                 else:
                     print('    ', grp['shortName'])
 
+def do_dump_assigns(opts, error_cb):
+    if opts.event_id is None:
+        error_cb('Event ID is required')
+    if opts.items is not None and len(opts.items) > 0:
+        for item in opts.items:
+            j = get_assign(opts, item)
+            print(j)
+    else:
+        j = msr_get(opts, 'events/%s/segments/%s/assignments' %
+                (opts.event_id, opts.segment_id),
+                params = { 'fields' :
+                    'vehicle_questions,modifications,profile,profile_questions' })
+        print(j)
+
+def do_dump_changes(opts, error_cb):
+    if opts.event_id is None:
+        error_cb('Event ID is required')
+    if opts.segment_id is None:
+        error_cb('Segment ID is required')
+    if opts.items is not None and len(opts.items) > 0:
+        for item in opts.items:
+            j = msr_get(opts, 'events/%s/feeds/timing/%s' % (opts.event_id, item))
+            print(j)
+    else:
+        j = msr_get(opts, 'events/%s/feeds/timing' % opts.event_id,
+                params = { 'segment' : opts.segment_id })
+        print(j)
+
 def process_args():
     ap = argparse.ArgumentParser(usage='%(prog)s [options] command [args...]')
     sp = ap.add_subparsers(title='subcommands', metavar=None)
@@ -109,6 +143,14 @@ def process_args():
 
     p = sp.add_parser('list_segments', help='List event segments')
     p.set_defaults(func=do_list_segments)
+
+    p = sp.add_parser('dump_assigns', help='Dump all raw assignment data')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
+    p.set_defaults(func=do_dump_assigns)
+
+    p = sp.add_parser('dump_changes', help='Dump all raw change data')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to dump')
+    p.set_defaults(func=do_dump_changes)
 
     opts = ap.parse_args()
     if not hasattr(opts, 'func'):
