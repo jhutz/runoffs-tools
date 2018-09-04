@@ -101,6 +101,17 @@ def do_dump_assigns(opts):
                 (opts.event_id, opts.segment_id), params = { 'fields' : fields })
         print(j)
 
+def do_dump_attendees(opts):
+    if opts.items is not None and len(opts.items) > 0:
+        for item in opts.items:
+            j = msr_get(opts, 'events/%s/attendees/%s' %
+                    (opts.event_id, item), params = { 'fields' : 'questions' })
+            print(j)
+    else:
+        j = msr_get(opts, 'events/%s/attendees' % opts.event_id,
+                params = { 'fields' : 'questions' })
+        print(j)
+
 def do_dump_changes(opts):
     if opts.items is not None and len(opts.items) > 0:
         for item in opts.items:
@@ -153,6 +164,11 @@ def process_args():
     p = sp.add_parser('dump_assigns', help='Dump raw assignment data')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.set_defaults(_func = do_dump_assigns)
+    p.set_defaults(_required = opts_msr_reqd + ('event-id',))
+
+    p = sp.add_parser('dump_attendees', help='Dump raw attendee data')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Attendee IDs to dump')
+    p.set_defaults(_func = do_dump_attendees)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
