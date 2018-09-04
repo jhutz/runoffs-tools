@@ -108,7 +108,7 @@ def do_dump_changes(opts):
             print(j)
     else:
         j = msr_get(opts, 'events/%s/feeds/timing' % opts.event_id,
-                params = { 'segment' : opts.segment_id })
+                params = { 'segments' : opts.segment_id })
         print(j)
 
 def do_help(opts, ap):
