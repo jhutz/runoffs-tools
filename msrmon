@@ -7,9 +7,20 @@ import argparse
 import configparser
 import requests
 
+# These command-line options can be set in the config file
+opts_from_config = ('server', 'userid', 'password', 'pwfile',
+            'org-id', 'event-id', 'segment-id')
+
+# Default values for some options.
+# Only needed for options that appear in opts_from_config
+opts_defaults = { 'server' : 'api.motorsportreg.com' }
+
+# Required options for anything that connects to MSR
+opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
 
 def load_config(opts):
     """Load the config file, if any, and provide default values for options."""
+
     global config
     config = {}
     if opts.config is None:
@@ -24,11 +35,14 @@ def load_config(opts):
         with open(opts.config) as lines:
             cp.read_file(itertools.chain(("[top]",), lines))
         config = cp['top']
-    # certain global options can be pre-set in the config file
-    for key in ('userid', 'password', 'pwfile', 'org-id', 'event-id', 'segment-id'):
+
+    for key in opts_from_config:
         okey = key.replace('-','_')
         if key in config and getattr(opts, okey, None) is None:
             setattr(opts, okey, config[key])
+    for key in opts_defaults.keys():
+        if getattr(opts, key, None) is None:
+            setattr(opts, key, opts_defaults[key])
     if opts.password is None and opts.pwfile is not None:
         with open(opts.pwfile) as pwfile:
             opts.password = pwfile.readline()
@@ -113,15 +127,14 @@ def process_args():
             help='Enable debugging')
     ap.add_argument('-v', '--verbose', action='store_true',
             help='Enable verbose output')
-    ap.add_argument('--server', help='MotorsportReg API server',
-            default='api.motorsportreg.com')
+    ap.add_argument('-c', '--config',     help='Config file')
+    ap.add_argument('--server', help='MotorsportReg API server')
     ap.add_argument('-U', '--userid',     help='MotorsportReg username')
     ap.add_argument('-P', '--password',   help='MotorsportReg password')
     ap.add_argument(      '--pwfile',     help='File containing MotorsportReg password')
     ap.add_argument('-O', '--org-id',     help='Organization ID')
     ap.add_argument('-E', '--event-id',   help='Event ID')
     ap.add_argument('-S', '--segment-id', help='Segment ID')
-    ap.add_argument('-c', '--config',     help='Config file')
 
     p = sp.add_parser('help', help='Show help message or subcommand help')
     p.add_argument('subcommand', nargs='?', help='Subcommand to show help for')
@@ -131,21 +144,21 @@ def process_args():
     p = sp.add_parser('list_events', help='List available events from MSR')
     p.add_argument('--archive', action='store_true', help='Show old events')
     p.set_defaults(_func = do_list_events)
-    p.set_defaults(_required = ('org-id',))
+    p.set_defaults(_required = opts_msr_reqd)
 
     p = sp.add_parser('list_segments', help='List event segments')
     p.set_defaults(_func = do_list_segments)
-    p.set_defaults(_required = ('org-id', 'event-id'))
+    p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
-    p = sp.add_parser('dump_assigns', help='Dump all raw assignment data')
+    p = sp.add_parser('dump_assigns', help='Dump raw assignment data')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.set_defaults(_func = do_dump_assigns)
-    p.set_defaults(_required = ('org-id', 'event-id'))
+    p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
-    p = sp.add_parser('dump_changes', help='Dump all raw change data')
+    p = sp.add_parser('dump_changes', help='Dump raw change data')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to dump')
     p.set_defaults(_func = do_dump_changes)
-    p.set_defaults(_required = ('org-id', 'event-id','segment-id'))
+    p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id'))
 
     opts = ap.parse_args()
     if not hasattr(opts, '_func'):
