@@ -48,12 +48,12 @@ def load_config(opts):
             opts.password = pwfile.readline()
 
 def msr_session(opts):
-    global g_msr_session
-    if 'g_msr_session' not in globals():
-        g_msr_session = requests.Session()
-        g_msr_session.auth = (opts.userid, opts.password)
-        g_msr_session.headers.update({ 'X-Organization-Id' : opts.org_id })
-    return g_msr_session
+    global MSR
+    if 'MSR' not in globals():
+        MSR = requests.Session()
+        MSR.auth = (opts.userid, opts.password)
+        MSR.headers.update({ 'X-Organization-Id' : opts.org_id })
+    return MSR
 
 def msr_get(opts, query, params={}):
     sess = msr_session(opts)
