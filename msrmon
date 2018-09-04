@@ -94,7 +94,7 @@ def do_dump_assigns(opts):
         # XXX No support for individual assignment fetch yet 9/2/2018
         for item in opts.items:
             j = msr_get(opts, 'events/%s/assignments/%s' %
-                    (opts.event_id, auid), params = { 'fields' : fields })
+                    (opts.event_id, item), params = { 'fields' : fields })
             print(j)
     else:
         j = msr_get(opts, 'events/%s/segments/%s/assignments' %
