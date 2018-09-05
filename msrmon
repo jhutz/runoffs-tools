@@ -89,7 +89,7 @@ def do_list_segments(opts):
 def do_dump_assigns(opts):
     # XXX No support for profile_questions yet 9/2/2018
     #fields = 'profile,profile_questions,modifications,vehicle_questions'
-    fields = 'profile,modifications,vehicle_questions'
+    fields = 'vehicle_questions'
 
     if opts.items is not None and len(opts.items) > 0:
         # XXX No support for individual assignment fetch yet 9/2/2018
