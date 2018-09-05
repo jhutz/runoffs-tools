@@ -22,34 +22,34 @@ opts_defaults = { 'server' : 'api.motorsportreg.com' }
 # Required options for anything that connects to MSR
 opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
 
-def load_config(opts):
+def load_config():
     """Load the config file, if any, and provide default values for options."""
 
-    global config
-    config = {}
-    if opts.config is None:
+    global Config, Options
+    Config = {}
+    if Options.config is None:
         if 'HOME' in os.environ:
             def_cfg = os.path.join(os.environ['HOME'], '.msrmon')
         else:
             def_cfg = '.msrmon'
         if os.path.exists(def_cfg):
-            opts.config = def_cfg
-    if opts.config is not None:
+            Options.config = def_cfg
+    if Options.config is not None:
         cp = configparser.ConfigParser()
-        with open(opts.config) as lines:
+        with open(Options.config) as lines:
             cp.read_file(itertools.chain(("[top]",), lines))
-        config = cp['top']
+        Config = cp['top']
 
     for key in opts_from_config:
         okey = key.replace('-','_')
-        if key in config and getattr(opts, okey, None) is None:
-            setattr(opts, okey, config[key])
+        if key in Config and getattr(Options, okey, None) is None:
+            setattr(Options, okey, Config[key])
     for key in opts_defaults.keys():
-        if getattr(opts, key, None) is None:
-            setattr(opts, key, opts_defaults[key])
-    if opts.password is None and opts.pwfile is not None:
-        with open(opts.pwfile) as pwfile:
-            opts.password = pwfile.readline()
+        if getattr(Options, key, None) is None:
+            setattr(Options, key, opts_defaults[key])
+    if Options.password is None and Options.pwfile is not None:
+        with open(Options.pwfile) as pwfile:
+            Options.password = pwfile.readline()
 
 def parse_ts(timestr):
     if re.match('^[0-9]+$', timestr):
@@ -57,35 +57,37 @@ def parse_ts(timestr):
     else:
         return dateutil_parser.parse(timestr)
 
-def msr_session(opts):
-    global MSR
+def msr_session():
+    global MSR, Options
     if 'MSR' not in globals():
         MSR = requests.Session()
-        MSR.auth = (opts.userid, opts.password)
-        MSR.headers.update({ 'X-Organization-Id' : opts.org_id })
+        MSR.auth = (Options.userid, Options.password)
+        MSR.headers.update({ 'X-Organization-Id' : Options.org_id })
     return MSR
 
-def msr_get(opts, query, params={}):
-    sess = msr_session(opts)
-    r = sess.get('https://%s/rest/%s.json' % (opts.server, query), params = params)
+def msr_get(query, params={}):
+    sess = msr_session()
+    r = sess.get('https://%s/rest/%s.json' % (Options.server, query), params = params)
     r.raise_for_status()
     return r.json()
 
-def do_list_events(opts):
-    j = msr_get(opts, 'calendars/organization/%s' % opts.org_id,
-            params = { 'archive' : 'true' } if opts.archive else {})
-    if opts.debug: pprint.pprint(j, file=sys.stderr)
+def do_list_events():
+    global Options
+    j = msr_get('calendars/organization/%s' % Options.org_id,
+            params = { 'archive' : 'true' } if Options.archive else {})
+    if Options.debug: pprint.pprint(j, file=sys.stderr)
     print('%-35s  %s' % ('Event ID', 'Name'))
     for event in j['response']['events']:
         print('%-35s  %s' % (event['id'], event['name']))
 
-def do_list_segments(opts):
-    j = msr_get(opts, 'events/%s/segments' % opts.event_id)
-    if opts.debug: pprint.pprint(j, file=sys.stderr)
+def do_list_segments():
+    global Options
+    j = msr_get('events/%s/segments' % Options.event_id)
+    if Options.debug: pprint.pprint(j, file=sys.stderr)
     print('%-35s  %s' % ('Segment ID', 'Name'))
     for seg in j['response']['segments']:
         print('%-35s  %s' % (seg['id'], seg['name']))
-        if opts.verbose:
+        if Options.verbose:
             class_map = { x['id'] : x['shortName'] for x in seg['classes'] }
             for grp in sorted(seg['groups'], key=lambda x: x['shortName']):
                 classes = [ class_map[x['classId']]
@@ -95,53 +97,58 @@ def do_list_segments(opts):
                 else:
                     print('    ', grp['shortName'])
 
-def do_dump_assigns(opts):
+def do_dump_assigns():
+    global Options
     # XXX No support for profile_questions yet 9/2/2018
     #fields = 'profile,profile_questions,modifications,vehicle_questions'
     fields = 'vehicle_questions'
 
-    if opts.items is not None and len(opts.items) > 0:
+    if Options.items is not None and len(Options.items) > 0:
         # XXX No support for individual assignment fetch yet 9/2/2018
-        for item in opts.items:
-            j = msr_get(opts, 'events/%s/assignments/%s' %
-                    (opts.event_id, item), params = { 'fields' : fields })
+        for item in Options.items:
+            j = msr_get('events/%s/assignments/%s' %
+                    (Options.event_id, item), params = { 'fields' : fields })
             pprint.pprint(j['response']['assignments'])
     else:
-        j = msr_get(opts, 'events/%s/segments/%s/assignments' %
-                (opts.event_id, opts.segment_id), params = { 'fields' : fields })
+        j = msr_get('events/%s/segments/%s/assignments' %
+                (Options.event_id, Options.segment_id), params = { 'fields' : fields })
         pprint.pprint(j['response']['assignments'])
 
-def do_dump_attendees(opts):
-    if opts.items is not None and len(opts.items) > 0:
-        for item in opts.items:
-            j = msr_get(opts, 'events/%s/attendees/%s' %
-                    (opts.event_id, item), params = { 'fields' : 'questions' })
+def do_dump_attendees():
+    global Options
+    if Options.items is not None and len(Options.items) > 0:
+        for item in Options.items:
+            j = msr_get('events/%s/attendees/%s' %
+                    (Options.event_id, item), params = { 'fields' : 'questions' })
             pprint.pprint(j['response']['attendees'])
     else:
-        j = msr_get(opts, 'events/%s/attendees' % opts.event_id,
+        j = msr_get('events/%s/attendees' % Options.event_id,
                 params = { 'fields' : 'questions' })
         pprint.pprint(j['response']['attendees'])
 
-def do_dump_changes(opts):
-    if opts.items is not None and len(opts.items) > 0:
-        for item in opts.items:
-            j = msr_get(opts, 'events/%s/feeds/timing/%s' % (opts.event_id, item))
+def do_dump_changes():
+    global Options
+    if Options.items is not None and len(Options.items) > 0:
+        for item in Options.items:
+            j = msr_get('events/%s/feeds/timing/%s' % (Options.event_id, item))
             pprint.pprint(j['data'])
     else:
-        params = { 'segments' : opts.segment_id }
-        if opts.since is not None:
-            params['since'] = opts.since.strftime('%Y-%m-%d %H:%M:%S.%f')
-        j = msr_get(opts, 'events/%s/feeds/timing' % opts.event_id, params=params)
+        params = { 'segments' : Options.segment_id }
+        if Options.since is not None:
+            params['since'] = Options.since.strftime('%Y-%m-%d %H:%M:%S.%f')
+        j = msr_get('events/%s/feeds/timing' % Options.event_id, params=params)
         pprint.pprint(j)
 
-def do_help(opts, ap):
-    if (opts.subcommand is not None):
-        ap.parse_args([opts.subcommand, '--help'])
+def do_help(ap):
+    global Options
+    if (Options.subcommand is not None):
+        ap.parse_args([Options.subcommand, '--help'])
     else:
         ap.print_help()
     ap.exit()
 
 def process_args():
+    global Options
     ap = argparse.ArgumentParser(usage='%(prog)s [options] command [args...]')
     sp = ap.add_subparsers(title='subcommands', metavar=None)
     ap._optionals.title = 'Options'
@@ -189,18 +196,18 @@ def process_args():
     p.set_defaults(_func = do_dump_changes)
     p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id'))
 
-    opts = ap.parse_args()
-    if not hasattr(opts, '_func'):
+    Options = ap.parse_args()
+    if not hasattr(Options, '_func'):
         ap.error('Missing subcommand')
-    load_config(opts)
+    load_config()
 
-    required = set(getattr(opts, '_required', ()))
-    missing = [ x for x in required if getattr(opts, x.replace('-', '_'), None) is None ]
+    required = set(getattr(Options, '_required', ()))
+    missing = [ x for x in required if getattr(Options, x.replace('-', '_'), None) is None ]
     if len(missing) > 0:
         for x in missing: sys.stderr.write("--%s is required\n" % x)
         ap.print_usage(file=sys.stderr)
         ap.exit(status=2)
 
-    opts._func(opts, *getattr(opts, '_args', ()))
+    Options._func(*getattr(Options, '_args', ()))
 
 process_args()
