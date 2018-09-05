@@ -5,6 +5,7 @@ import sys
 import itertools
 import argparse
 import configparser
+import pprint
 import requests
 
 # These command-line options can be set in the config file
@@ -64,14 +65,14 @@ def msr_get(opts, query, params={}):
 def do_list_events(opts):
     j = msr_get(opts, 'calendars/organization/%s' % opts.org_id,
             params = { 'archive' : 'true' } if opts.archive else {})
-    if opts.debug: print(j, file=sys.stderr)
+    if opts.debug: pprint.pprint(j, file=sys.stderr)
     print('%-35s  %s' % ('Event ID', 'Name'))
     for event in j['response']['events']:
         print('%-35s  %s' % (event['id'], event['name']))
 
 def do_list_segments(opts):
     j = msr_get(opts, 'events/%s/segments' % opts.event_id)
-    if opts.debug: print(j, file=sys.stderr)
+    if opts.debug: pprint.pprint(j, file=sys.stderr)
     print('%-35s  %s' % ('Segment ID', 'Name'))
     for seg in j['response']['segments']:
         print('%-35s  %s' % (seg['id'], seg['name']))
@@ -95,32 +96,32 @@ def do_dump_assigns(opts):
         for item in opts.items:
             j = msr_get(opts, 'events/%s/assignments/%s' %
                     (opts.event_id, item), params = { 'fields' : fields })
-            print(j)
+            pprint.pprint(j['response']['assignments'])
     else:
         j = msr_get(opts, 'events/%s/segments/%s/assignments' %
                 (opts.event_id, opts.segment_id), params = { 'fields' : fields })
-        print(j)
+        pprint.pprint(j['response']['assignments'])
 
 def do_dump_attendees(opts):
     if opts.items is not None and len(opts.items) > 0:
         for item in opts.items:
             j = msr_get(opts, 'events/%s/attendees/%s' %
                     (opts.event_id, item), params = { 'fields' : 'questions' })
-            print(j)
+            pprint.pprint(j['response']['attendees'])
     else:
         j = msr_get(opts, 'events/%s/attendees' % opts.event_id,
                 params = { 'fields' : 'questions' })
-        print(j)
+        pprint.pprint(j['response']['attendees'])
 
 def do_dump_changes(opts):
     if opts.items is not None and len(opts.items) > 0:
         for item in opts.items:
             j = msr_get(opts, 'events/%s/feeds/timing/%s' % (opts.event_id, item))
-            print(j)
+            pprint.pprint(j['data'])
     else:
         j = msr_get(opts, 'events/%s/feeds/timing' % opts.event_id,
                 params = { 'segments' : opts.segment_id })
-        print(j)
+        pprint.pprint(j['data'])
 
 def do_help(opts, ap):
     if (opts.subcommand is not None):
