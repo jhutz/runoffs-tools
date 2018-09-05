@@ -97,6 +97,18 @@ def do_list_segments():
                 else:
                     print('    ', grp['shortName'])
 
+def do_dump_attendees():
+    global Options
+    if Options.items is not None and len(Options.items) > 0:
+        for item in Options.items:
+            j = msr_get('events/%s/attendees/%s' %
+                    (Options.event_id, item), params = { 'fields' : 'questions' })
+            pprint.pprint(j['response']['attendees'])
+    else:
+        j = msr_get('events/%s/attendees' % Options.event_id,
+                params = { 'fields' : 'questions' })
+        pprint.pprint(j['response']['attendees'])
+
 def do_dump_assigns():
     global Options
     # XXX No support for profile_questions yet 9/2/2018
@@ -113,18 +125,6 @@ def do_dump_assigns():
         j = msr_get('events/%s/segments/%s/assignments' %
                 (Options.event_id, Options.segment_id), params = { 'fields' : fields })
         pprint.pprint(j['response']['assignments'])
-
-def do_dump_attendees():
-    global Options
-    if Options.items is not None and len(Options.items) > 0:
-        for item in Options.items:
-            j = msr_get('events/%s/attendees/%s' %
-                    (Options.event_id, item), params = { 'fields' : 'questions' })
-            pprint.pprint(j['response']['attendees'])
-    else:
-        j = msr_get('events/%s/attendees' % Options.event_id,
-                params = { 'fields' : 'questions' })
-        pprint.pprint(j['response']['attendees'])
 
 def do_dump_changes():
     global Options
@@ -180,14 +180,14 @@ def process_args():
     p.set_defaults(_func = do_list_segments)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
-    p = sp.add_parser('dump_assigns', help='Dump raw assignment data')
-    p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
-    p.set_defaults(_func = do_dump_assigns)
-    p.set_defaults(_required = opts_msr_reqd + ('event-id',))
-
     p = sp.add_parser('dump_attendees', help='Dump raw attendee data')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Attendee IDs to dump')
     p.set_defaults(_func = do_dump_attendees)
+    p.set_defaults(_required = opts_msr_reqd + ('event-id',))
+
+    p = sp.add_parser('dump_assigns', help='Dump raw assignment data')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
+    p.set_defaults(_func = do_dump_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
