@@ -3,6 +3,9 @@
 import os
 import sys
 import itertools
+import datetime
+from dateutil import parser as dateutil_parser
+import re
 import argparse
 import configparser
 import pprint
@@ -47,6 +50,12 @@ def load_config(opts):
     if opts.password is None and opts.pwfile is not None:
         with open(opts.pwfile) as pwfile:
             opts.password = pwfile.readline()
+
+def parse_ts(timestr):
+    if re.match('^[0-9]+$', timestr):
+        return datetime.fromtimestamp(int(timestr))
+    else:
+        return dateutil_parser.parse(timestr)
 
 def msr_session(opts):
     global MSR
@@ -119,9 +128,11 @@ def do_dump_changes(opts):
             j = msr_get(opts, 'events/%s/feeds/timing/%s' % (opts.event_id, item))
             pprint.pprint(j['data'])
     else:
-        j = msr_get(opts, 'events/%s/feeds/timing' % opts.event_id,
-                params = { 'segments' : opts.segment_id })
-        pprint.pprint(j['data'])
+        params = { 'segments' : opts.segment_id }
+        if opts.since is not None:
+            params['since'] = opts.since.strftime('%Y-%m-%d %H:%M:%S.%f')
+        j = msr_get(opts, 'events/%s/feeds/timing' % opts.event_id, params=params)
+        pprint.pprint(j)
 
 def do_help(opts, ap):
     if (opts.subcommand is not None):
@@ -173,6 +184,7 @@ def process_args():
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
+    p.add_argument('-t', '--since', type=parse_ts, help='Start time')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to dump')
     p.set_defaults(_func = do_dump_changes)
     p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id'))
