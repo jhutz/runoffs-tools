@@ -57,6 +57,7 @@ def parse_ts(timestr):
     else:
         return dateutil_parser.parse(timestr)
 
+
 def msr_session():
     global MSR, Options
     if 'MSR' not in globals():
@@ -70,6 +71,25 @@ def msr_get(query, params={}):
     r = sess.get('https://%s/rest/%s.json' % (Options.server, query), params = params)
     r.raise_for_status()
     return r.json()
+
+def msr_get_attendee(item):
+    global Options
+    j = msr_get('events/%s/attendees/%s' % (Options.event_id, item),
+            params = { 'fields' : 'questions' })
+    try: obj = j['response']['attendees'][0]
+    except IndexError: return None
+    # XXX simplify event questions
+    return obj
+
+def msr_get_assign(item):
+    global Options
+    j = msr_get('events/%s/assignments/%s' % (Options.event_id, item),
+            params = { 'fields' : 'vehicle_questions' })
+    try: obj = j['response']['assignments'][0]
+    except IndexError: return None
+    # XXX simplify vehicle questions
+    return obj
+
 
 def do_list_events():
     global Options
@@ -101,9 +121,7 @@ def do_dump_attendees():
     global Options
     if Options.items is not None and len(Options.items) > 0:
         for item in Options.items:
-            j = msr_get('events/%s/attendees/%s' %
-                    (Options.event_id, item), params = { 'fields' : 'questions' })
-            pprint.pprint(j['response']['attendees'])
+            pprint.pprint(msr_get_attendee(item))
     else:
         j = msr_get('events/%s/attendees' % Options.event_id,
                 params = { 'fields' : 'questions' })
@@ -111,16 +129,10 @@ def do_dump_attendees():
 
 def do_dump_assigns():
     global Options
-    # XXX No support for profile_questions yet 9/2/2018
-    #fields = 'profile,profile_questions,modifications,vehicle_questions'
     fields = 'vehicle_questions'
-
     if Options.items is not None and len(Options.items) > 0:
-        # XXX No support for individual assignment fetch yet 9/2/2018
         for item in Options.items:
-            j = msr_get('events/%s/assignments/%s' %
-                    (Options.event_id, item), params = { 'fields' : fields })
-            pprint.pprint(j['response']['assignments'])
+            pprint.pprint(msr_get_assign(item))
     else:
         j = msr_get('events/%s/segments/%s/assignments' %
                 (Options.event_id, Options.segment_id), params = { 'fields' : fields })
@@ -146,6 +158,7 @@ def do_help(ap):
     else:
         ap.print_help()
     ap.exit()
+
 
 def process_args():
     global Options
