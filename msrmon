@@ -28,7 +28,7 @@ msr_assign_params = { 'fields' : 'vehicle_questions' }
 def load_config():
     """Load the config file, if any, and provide default values for options."""
 
-    global Config, Options
+    global Config
     Config = {}
     if Options.config is None:
         if 'HOME' in os.environ:
@@ -62,7 +62,7 @@ def parse_ts(timestr):
 
 
 def msr_session():
-    global MSR, Options
+    global MSR
     if 'MSR' not in globals():
         MSR = requests.Session()
         MSR.auth = (Options.userid, Options.password)
@@ -76,7 +76,6 @@ def msr_get(query, params={}):
     return r.json()
 
 def msr_get_attendee(item):
-    global Options
     j = msr_get('events/%s/attendees/%s' % (Options.event_id, item),
             params = msr_attendee_params)
     try: obj = j['response']['attendees'][0]
@@ -85,14 +84,12 @@ def msr_get_attendee(item):
     return obj
 
 def msr_get_attendee_list():
-    global Options
     j = msr_get('events/%s/attendees' % Options.event_id,
             params = msr_attendee_params)
     # XXX simplify event questions
     return j['response']['attendees']
 
 def msr_get_assign(item):
-    global Options
     j = msr_get('events/%s/assignments/%s' % (Options.event_id, item),
             msr_assign_params)
     try: obj = j['response']['assignments'][0]
@@ -101,7 +98,6 @@ def msr_get_assign(item):
     return obj
 
 def msr_get_assign_list():
-    global Options
     j = msr_get('events/%s/segments/%s/assignments' %
             (Options.event_id, Options.segment_id),
             msr_assign_params)
@@ -109,7 +105,6 @@ def msr_get_assign_list():
     return j['response']['assignments']
 
 def do_list_events():
-    global Options
     j = msr_get('calendars/organization/%s' % Options.org_id,
             params = { 'archive' : 'true' } if Options.archive else {})
     if Options.debug: pprint.pprint(j, file=sys.stderr)
@@ -118,7 +113,6 @@ def do_list_events():
         print('%-35s  %s' % (event['id'], event['name']))
 
 def do_list_segments():
-    global Options
     j = msr_get('events/%s/segments' % Options.event_id)
     if Options.debug: pprint.pprint(j, file=sys.stderr)
     print('%-35s  %s' % ('Segment ID', 'Name'))
@@ -135,7 +129,6 @@ def do_list_segments():
                     print('    ', grp['shortName'])
 
 def do_dump_attendees():
-    global Options
     if Options.items is not None and len(Options.items) > 0:
         for item in Options.items:
             pprint.pprint(msr_get_attendee(item))
@@ -143,7 +136,6 @@ def do_dump_attendees():
         pprint.pprint(msr_get_attendee_list())
 
 def do_dump_assigns():
-    global Options
     if Options.items is not None and len(Options.items) > 0:
         for item in Options.items:
             pprint.pprint(msr_get_assign(item))
@@ -151,7 +143,6 @@ def do_dump_assigns():
         pprint.pprint(msr_get_assign_list())
 
 def do_dump_changes():
-    global Options
     if Options.items is not None and len(Options.items) > 0:
         for item in Options.items:
             j = msr_get('events/%s/feeds/timing/%s' % (Options.event_id, item))
@@ -164,7 +155,6 @@ def do_dump_changes():
         pprint.pprint(j)
 
 def do_help(ap):
-    global Options
     if (Options.subcommand is not None):
         ap.parse_args([Options.subcommand, '--help'])
     else:
