@@ -22,6 +22,9 @@ opts_defaults = { 'server' : 'api.motorsportreg.com' }
 # Required options for anything that connects to MSR
 opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
 
+msr_attendee_params = { 'fields' : 'questions' }
+msr_assign_params = { 'fields' : 'vehicle_questions' }
+
 def load_config():
     """Load the config file, if any, and provide default values for options."""
 
@@ -75,21 +78,35 @@ def msr_get(query, params={}):
 def msr_get_attendee(item):
     global Options
     j = msr_get('events/%s/attendees/%s' % (Options.event_id, item),
-            params = { 'fields' : 'questions' })
+            params = msr_attendee_params)
     try: obj = j['response']['attendees'][0]
     except IndexError: return None
     # XXX simplify event questions
     return obj
 
+def msr_get_attendee_list():
+    global Options
+    j = msr_get('events/%s/attendees' % Options.event_id,
+            params = msr_attendee_params)
+    # XXX simplify event questions
+    return j['response']['attendees']
+
 def msr_get_assign(item):
     global Options
     j = msr_get('events/%s/assignments/%s' % (Options.event_id, item),
-            params = { 'fields' : 'vehicle_questions' })
+            msr_assign_params)
     try: obj = j['response']['assignments'][0]
     except IndexError: return None
     # XXX simplify vehicle questions
     return obj
 
+def msr_get_assign_list():
+    global Options
+    j = msr_get('events/%s/segments/%s/assignments' %
+            (Options.event_id, Options.segment_id),
+            msr_assign_params)
+    # XXX simplify vehicle questions
+    return j['response']['assignments']
 
 def do_list_events():
     global Options
@@ -123,20 +140,15 @@ def do_dump_attendees():
         for item in Options.items:
             pprint.pprint(msr_get_attendee(item))
     else:
-        j = msr_get('events/%s/attendees' % Options.event_id,
-                params = { 'fields' : 'questions' })
-        pprint.pprint(j['response']['attendees'])
+        pprint.pprint(msr_get_attendee_list())
 
 def do_dump_assigns():
     global Options
-    fields = 'vehicle_questions'
     if Options.items is not None and len(Options.items) > 0:
         for item in Options.items:
             pprint.pprint(msr_get_assign(item))
     else:
-        j = msr_get('events/%s/segments/%s/assignments' %
-                (Options.event_id, Options.segment_id), params = { 'fields' : fields })
-        pprint.pprint(j['response']['assignments'])
+        pprint.pprint(msr_get_assign_list())
 
 def do_dump_changes():
     global Options
