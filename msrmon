@@ -116,6 +116,19 @@ def msr_get_assign_list():
     # XXX simplify vehicle questions
     return j['response']['assignments']
 
+def msr_get_changes():
+    params = { 'segments' : Options.segment_id }
+    # XXX look up last known change in database
+    if Options.since is not None:
+        params['since'] = Options.since.strftime('%Y-%m-%d %H:%M:%S.%f')
+    j = msr_get('events/%s/feeds/timing' % Options.event_id, params=params)
+    if not j['success']:
+        sys.stderr.write('MSR API request failed:')
+        for e in j['errors']:
+            sys.stderr.write(e)
+        sys.exit(1)
+    return j['data']
+
 
 def do_list_events():
     j = msr_get('calendars/organization/%s' % Options.org_id,
@@ -246,16 +259,7 @@ def do_list_assigns():
 
 
 def do_dump_changes():
-    if Options.items is not None and len(Options.items) > 0:
-        for item in Options.items:
-            j = msr_get('events/%s/feeds/timing/%s' % (Options.event_id, item))
-            pprint.pprint(j['data'])
-    else:
-        params = { 'segments' : Options.segment_id }
-        if Options.since is not None:
-            params['since'] = Options.since.strftime('%Y-%m-%d %H:%M:%S.%f')
-        j = msr_get('events/%s/feeds/timing' % Options.event_id, params=params)
-        pprint.pprint(j)
+    pprint.pprint(msr_get_changes())
 
 def do_help(ap):
     if (Options.subcommand is not None):
@@ -319,7 +323,6 @@ def process_args():
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
     p.add_argument('-t', '--since', type=parse_ts, help='Start time')
-    p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to dump')
     p.set_defaults(_func = do_dump_changes)
     p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id'))
 
