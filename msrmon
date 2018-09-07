@@ -2,6 +2,7 @@
 
 import os
 import sys
+import collections
 import itertools
 from datetime import datetime, timezone
 from dateutil import parser as dateutil_parser
@@ -62,6 +63,16 @@ def parse_ts(timestr):
                 default=datetime.now(timezone.utc).replace(
                     hour=0, minute=0, second=0, microsecond=0))
 
+def print_header(fmt, cols):
+    def dash(x):
+        if isinstance(x, collections.abc.Mapping):
+            return { k : dash(v) for k, v in x.items() }
+        else:
+            return '='
+    if Options.dump: return
+    print(fmt.format(**cols).rstrip())
+    print(fmt.replace(':',':=<').format(**dash(cols)))
+
 def msr_session():
     global MSR
     if 'MSR' not in globals():
@@ -79,10 +90,10 @@ def msr_get(query, params={}):
 def msr_get_attendee(item):
     j = msr_get('events/%s/attendees/%s' % (Options.event_id, item),
             params = msr_attendee_params)
-    try: obj = j['response']['attendees'][0]
+    try: rec = j['response']['attendees'][0]
     except IndexError: return None
     # XXX simplify event questions
-    return obj
+    return rec
 
 def msr_get_attendee_list():
     j = msr_get('events/%s/attendees' % Options.event_id,
@@ -93,10 +104,10 @@ def msr_get_attendee_list():
 def msr_get_assign(item):
     j = msr_get('events/%s/assignments/%s' % (Options.event_id, item),
             msr_assign_params)
-    try: obj = j['response']['assignments'][0]
+    try: rec = j['response']['assignments'][0]
     except IndexError: return None
     # XXX simplify vehicle questions
-    return obj
+    return rec
 
 def msr_get_assign_list():
     j = msr_get('events/%s/segments/%s/assignments' %
@@ -105,20 +116,41 @@ def msr_get_assign_list():
     # XXX simplify vehicle questions
     return j['response']['assignments']
 
+
 def do_list_events():
     j = msr_get('calendars/organization/%s' % Options.org_id,
             params = { 'archive' : 'true' } if Options.archive else {})
-    if Options.debug: pprint.pprint(j, file=sys.stderr)
-    print('%-35s  %s' % ('Event ID', 'Name'))
-    for event in j['response']['events']:
-        print('%-35s  %s' % (event['id'], event['name']))
+    if Options.dump:
+        pprint.pprint(j)
+        return
+    if Options.long:
+        fmt = '{id:35} {name:30.30} {start:10} {venue[name]:10}'
+    else:
+        fmt = '{id:35} {name:30}'
+    col_headers = {
+            'id'    : 'Event ID',
+            'name'  : 'Event Name',
+            'start' : 'Date',
+            'venue' : { 'name' : 'Venue' },
+            }
+    print_header(fmt, col_headers)
+    for rec in j['response']['events']:
+        print(fmt.format(**rec).rstrip())
+
 
 def do_list_segments():
     j = msr_get('events/%s/segments' % Options.event_id)
-    if Options.debug: pprint.pprint(j, file=sys.stderr)
-    print('%-35s  %s' % ('Segment ID', 'Name'))
-    for seg in j['response']['segments']:
-        print('%-35s  %s' % (seg['id'], seg['name']))
+    if Options.dump:
+        pprint.pprint(j)
+        return
+    fmt = '{id:35} {name:30}'
+    col_headers = {
+            'id'    : 'Segment ID',
+            'name'  : 'Segment Name',
+            }
+    print_header(fmt, col_headers)
+    for rec in j['response']['segments']:
+        print(fmt.format(**rec).rstrip())
         if Options.verbose:
             class_map = { x['id'] : x['shortName'] for x in seg['classes'] }
             for grp in sorted(seg['groups'], key=lambda x: x['shortName']):
@@ -129,19 +161,89 @@ def do_list_segments():
                 else:
                     print('    ', grp['shortName'])
 
-def do_dump_attendees():
-    if Options.items is not None and len(Options.items) > 0:
-        for item in Options.items:
-            pprint.pprint(msr_get_attendee(item))
-    else:
-        pprint.pprint(msr_get_attendee_list())
 
-def do_dump_assigns():
+def do_list_attendees():
     if Options.items is not None and len(Options.items) > 0:
-        for item in Options.items:
-            pprint.pprint(msr_get_assign(item))
+        recs = [ msr_get_attendee(item) for item in Options.items ]
     else:
-        pprint.pprint(msr_get_assign_list())
+        recs = msr_get_attendee_list()
+
+    if Options.dump:
+        pprint.pprint(recs)
+        return
+    if Options.long:
+        fmt = '{memberId!s:8} {_fullName:30.30} {_homeTown:25.25} {email:30.30} {registered:19} {lastUpdate:19}'
+    else:
+        fmt = '{memberId!s:8} {lastName:35} {firstName:25} {registered/date:10}'
+    col_headers = {
+            'memberId'        : 'Member #',
+            'firstName'       : 'First Name',
+            'lastName'        : 'Last Name',
+            '_fullName'       : 'Name',
+            '_homeTown'       : 'Home Town',
+            'email'           : 'Email Address',
+            'registered'      : 'Registration Date',
+            'registered/date' : 'Registered',
+            'lastUpdate'      : 'Last Updated',
+            'lastUpdate/date' : 'Last Updated',
+            }
+
+    print_header(fmt, col_headers)
+    for rec in recs:
+        reg = parse_ts(rec['registered'])
+        upd = parse_ts(rec['lastUpdate'])
+        data = rec.copy()
+        data['_fullName'] = ' '.join((data['firstName'], data['lastName']),)
+        data['_homeTown'] = ' '.join((data['city'], data['region']),)
+        data['registered/date'] = reg.astimezone().strftime('%Y-%m-%d')
+        data['lastUpdate/date'] = upd.astimezone().strftime('%Y-%m-%d')
+
+        print(fmt.format(**data).rstrip())
+        if Options.questions:
+            for q in sorted([ (q['header'], q['answer']) for q in data['questions'] ]):
+                print('  {0:35} {1}'.format(*q))
+
+
+def do_list_assigns():
+    if Options.items is not None and len(Options.items) > 0:
+        recs = [ msr_get_assign(item) for item in Options.items ]
+    else:
+        recs = msr_get_assign_list()
+
+    if Options.dump:
+        pprint.pprint(recs)
+        return
+    if Options.long:
+        fmt = '{vehicleNumber:3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
+    else:
+        fmt = '{vehicleNumber:3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
+    col_headers = {
+            'vehicleNumber'   : 'No.',
+            'classShort'      : 'Class',
+            '_fullName'       : 'Name',
+            'transponder'     : 'Tx #',
+            'year'            : 'Year',
+            '_MM'             : 'Make/Model',
+            'make'            : 'Make',
+            'model'           : 'Model',
+            'color'           : 'Color',
+            'memberId'        : 'Member #',
+            '_homeTown'       : 'Home Town',
+            'sponsor'         : 'Sponsor',
+            }
+
+    print_header(fmt, col_headers)
+    for rec in recs:
+        data = rec.copy()
+        data['_fullName'] = ' '.join((data['firstName'], data['lastName']),)
+        data['_homeTown'] = ' '.join((data['city'], data['region']),)
+        data['_MM'] = ' '.join((data['make'], data['model']),)
+
+        print(fmt.format(**data).rstrip())
+        if Options.questions:
+            for q in sorted([ (q['header'], q['answer']) for q in data['vehicle_questions'] ]):
+                print('  {0:35} {1}'.format(*q))
+
 
 def do_dump_changes():
     if Options.items is not None and len(Options.items) > 0:
@@ -189,21 +291,30 @@ def process_args():
 
     p = sp.add_parser('list_events', help='List available events from MSR')
     p.add_argument('--archive', action='store_true', help='Show old events')
+    p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
     p.set_defaults(_func = do_list_events)
     p.set_defaults(_required = opts_msr_reqd)
 
     p = sp.add_parser('list_segments', help='List event segments')
+    p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
     p.set_defaults(_func = do_list_segments)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
-    p = sp.add_parser('dump_attendees', help='Dump raw attendee data')
+    p = sp.add_parser('list_attendees', help='List attendees')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Attendee IDs to dump')
-    p.set_defaults(_func = do_dump_attendees)
+    p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-q', '--questions', action='store_true', help='Include questions')
+    p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
+    p.set_defaults(_func = do_list_attendees)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
-    p = sp.add_parser('dump_assigns', help='Dump raw assignment data')
+    p = sp.add_parser('list_assigns', help='List assignments')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
-    p.set_defaults(_func = do_dump_assigns)
+    p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-q', '--questions', action='store_true', help='Include questions')
+    p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
+    p.set_defaults(_func = do_list_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
