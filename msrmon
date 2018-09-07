@@ -3,7 +3,7 @@
 import os
 import sys
 import itertools
-import datetime
+from datetime import datetime, timezone
 from dateutil import parser as dateutil_parser
 import re
 import argparse
@@ -56,10 +56,11 @@ def load_config():
 
 def parse_ts(timestr):
     if re.match('^[0-9]+$', timestr):
-        return datetime.fromtimestamp(int(timestr))
+        return datetime.fromtimestamp(int(timestr), timezone.utc)
     else:
-        return dateutil_parser.parse(timestr)
-
+        return dateutil_parser.parse(timestr,
+                default=datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0))
 
 def msr_session():
     global MSR
