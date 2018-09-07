@@ -258,6 +258,31 @@ def do_list_assigns():
                 print('  {0:35} {1}'.format(*q))
 
 
+def do_update():
+    for rec in msr_get_changes():
+        # Fetch assign(vehicle) and attendee(entry) questions
+        # Apply special-case field mappings
+
+        # BEGIN TRANSACTION
+        # Ensure assign UID and all question UIDs are in database
+        # This is a separate transaction so it commits even if below aborts
+        # END TRANSACTION
+
+        # BEGIN TRANSACTION
+        # Compare questions against DB; compute diffs; update DB
+        # Is change in database already? If so:
+        # - With --force, blow away existing field diffs
+        # - Otherwise, if there are no question diffs, move on to next change
+        # - Otherwise, cons up a fake change to record the question diffs
+        # Derive custom field values from questions
+        # Derive old/new values for composite fields if any component changed
+        # Figure out if this is an "interesting" change
+        # Add/update change metadata
+        # Add field diffs
+
+        pass
+
+
 def do_dump_changes():
     pprint.pprint(msr_get_changes())
 
