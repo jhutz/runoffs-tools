@@ -229,8 +229,8 @@ def do_attendees():
     for data in recs:
         reg = parse_ts(data['registered'])
         upd = parse_ts(data['lastUpdate'])
-        data['_fullName'] = ' '.join((data['firstName'], data['lastName']),)
-        data['_homeTown'] = ' '.join((data['city'], data['region']),)
+        data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
+        data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['registered/date'] = reg.astimezone().strftime('%Y-%m-%d')
         data['lastUpdate/date'] = upd.astimezone().strftime('%Y-%m-%d')
 
@@ -270,9 +270,9 @@ def do_assigns():
 
     print_header(fmt, col_headers)
     for data in recs:
-        data['_fullName'] = ' '.join((data['firstName'], data['lastName']),)
-        data['_homeTown'] = ' '.join((data['city'], data['region']),)
-        data['_MM'] = ' '.join((data['make'], data['model']),)
+        data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
+        data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
+        data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
 
         print(fmt.format(**data).rstrip())
         if Options.questions:
