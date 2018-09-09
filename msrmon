@@ -211,7 +211,7 @@ def do_attendees():
     if Options.long:
         fmt = '{memberId!s:8} {_fullName:30.30} {_homeTown:25.25} {email:30.30} {registered:19} {lastUpdate:19}'
     else:
-        fmt = '{memberId!s:8} {lastName:35} {firstName:25} {registered/date:10}'
+        fmt = '{memberId!s:8} {_fullName:30.30} {registered/date:10}'
     col_headers = {
             'memberId'        : 'Member #',
             'firstName'       : 'First Name',
