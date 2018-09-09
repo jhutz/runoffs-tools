@@ -88,10 +88,16 @@ def msr_get(query, params={}):
     r.raise_for_status()
     return r.json()
 
+
+def _msr_load_fake_attendees():
+    global Fake_Attendees
+    if 'Fake_Attendees' not in globals():
+        j = json.load(Options.attendee_data)
+        Fake_Attendees = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+
 def msr_get_attendee(item):
     if Options.attendee_data is not None:
-        if 'Fake_Attendees' not in globals():
-            msr_get_attendee_list()
+        _msr_load_fake_attendees()
         return Fake_Attendees.get(item, None)
     j = msr_get('events/%s/attendees/%s' % (Options.event_id, item),
             params = msr_attendee_params)
@@ -100,21 +106,23 @@ def msr_get_attendee(item):
     return rec
 
 def msr_get_attendee_list():
-    global Fake_Attendees
-    if 'Fake_Attendees' in globals():
-        return Fake_Attendees.values()
-    elif Options.attendee_data is not None:
-        j = json.load(Options.attendee_data)
-        Fake_Attendees = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+    if Options.attendee_data is not None:
+        _msr_load_fake_attendees()
         return Fake_Attendees.values()
     j = msr_get('events/%s/attendees' % Options.event_id,
             params = msr_attendee_params)
     return j['response']['attendees']
 
+
+def _msr_load_fake_assigns():
+    global Fake_Assigns
+    if 'Fake_Assigns' not in globals():
+        j = json.load(Options.assign_data)
+        Fake_Assigns = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+
 def msr_get_assign(item):
     if Options.assign_data is not None:
-        if 'Fake_Assigns' not in globals():
-            msr_get_attendee_list()
+        _msr_load_fake_assigns()
         return Fake_Assigns.get(item, None)
     j = msr_get('events/%s/assignments/%s' % (Options.event_id, item),
             msr_assign_params)
@@ -123,12 +131,8 @@ def msr_get_assign(item):
     return rec
 
 def msr_get_assign_list():
-    global Fake_Assigns
-    if 'Fake_Assigns' in globals():
-        return Fake_Assigns.values()
-    elif Options.assign_data is not None:
-        j = json.load(Options.assign_data)
-        Fake_Assigns = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+    if Options.assign_data is not None:
+        _msr_load_fake_assigns()
         return Fake_Assigns.values()
     j = msr_get('events/%s/segments/%s/assignments' %
             (Options.event_id, Options.segment_id),
