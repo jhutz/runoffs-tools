@@ -149,7 +149,7 @@ def msr_get_changes():
     return j['data']
 
 
-def do_list_events():
+def do_events():
     j = msr_get('calendars/organization/%s' % Options.org_id,
             params = { 'archive' : 'true' } if Options.archive else {})
     if Options.dump:
@@ -170,7 +170,7 @@ def do_list_events():
         print(fmt.format(**rec).rstrip())
 
 
-def do_list_segments():
+def do_segments():
     j = msr_get('events/%s/segments' % Options.event_id)
     if Options.dump:
         dumpobj(j)
@@ -194,7 +194,7 @@ def do_list_segments():
                     print('    ', grp['shortName'])
 
 
-def do_list_attendees():
+def do_attendees():
     if Options.items is not None and len(Options.items) > 0:
         recs = [ msr_get_attendee(item) for item in Options.items ]
     else:
@@ -236,7 +236,7 @@ def do_list_attendees():
                 print('  {0:35} {1}'.format(*q))
 
 
-def do_list_assigns():
+def do_assigns():
     if Options.items is not None and len(Options.items) > 0:
         recs = [ msr_get_assign(item) for item in Options.items ]
     else:
@@ -341,32 +341,32 @@ def process_args():
     p.set_defaults(_func = do_help)
     p.set_defaults(_args = (ap,))
 
-    p = sp.add_parser('list_events', help='List available events from MSR')
+    p = sp.add_parser('events', help='List available events from MSR')
     p.add_argument('--archive', action='store_true', help='Show old events')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
-    p.set_defaults(_func = do_list_events)
+    p.set_defaults(_func = do_events)
     p.set_defaults(_required = opts_msr_reqd)
 
-    p = sp.add_parser('list_segments', help='List event segments')
+    p = sp.add_parser('segments', help='List event segments')
     p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
-    p.set_defaults(_func = do_list_segments)
+    p.set_defaults(_func = do_segments)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
-    p = sp.add_parser('list_attendees', help='List attendees')
+    p = sp.add_parser('attendees', help='List attendees')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Attendee IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-q', '--questions', action='store_true', help='Include questions')
     p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
-    p.set_defaults(_func = do_list_attendees)
+    p.set_defaults(_func = do_attendees)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
-    p = sp.add_parser('list_assigns', help='List assignments')
+    p = sp.add_parser('assigns', help='List assignments')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-q', '--questions', action='store_true', help='Include questions')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
-    p.set_defaults(_func = do_list_assigns)
+    p.set_defaults(_func = do_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
