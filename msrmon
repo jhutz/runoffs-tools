@@ -8,9 +8,9 @@ from datetime import datetime, timezone
 from dateutil import parser as dateutil_parser
 import re
 import argparse
-import configparser
 import requests
 import json
+import yaml
 
 # These command-line options can be set in the config file
 opts_from_config = ('server', 'userid', 'password', 'pwfile',
@@ -39,10 +39,8 @@ def load_config():
         if os.path.exists(def_cfg):
             Options.config = def_cfg
     if Options.config is not None:
-        cp = configparser.ConfigParser()
-        with open(Options.config) as lines:
-            cp.read_file(itertools.chain(("[top]",), lines))
-        Config = cp['top']
+        with open(Options.config) as cfg_file:
+            Config = yaml.safe_load(cfg_file)
 
     for key in opts_from_config:
         okey = key.replace('-','_')
