@@ -73,7 +73,7 @@ def print_header(fmt, cols):
             return '='
     if Options.dump: return
     print(fmt.format(**cols).rstrip())
-    print(fmt.replace(':',':=<').format(**dash(cols)))
+    print(re.sub(r':[^}\d]*(\d+)[^}]*}', r':=<\1}', fmt).format(**dash(cols)))
 
 def msr_session():
     global MSR
@@ -250,9 +250,9 @@ def do_assigns():
         dumpobj(recs)
         return
     if Options.long:
-        fmt = '{vehicleNumber:3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
+        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
     else:
-        fmt = '{vehicleNumber:3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
+        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
     col_headers = {
             'vehicleNumber'   : 'No.',
             'classShort'      : 'Class',
