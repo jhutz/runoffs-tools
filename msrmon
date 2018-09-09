@@ -114,6 +114,14 @@ def msr_get_attendee_list():
             params = msr_attendee_params)
     return j['response']['attendees']
 
+def msr_get_attendee_dict():
+    if Options.attendee_data is not None:
+        _msr_load_fake_attendees()
+        return { k : deepcopy(v) for k,v in Fake_Attendees.items() }
+    j = msr_get('events/%s/attendees' % Options.event_id,
+            params = msr_attendee_params)
+    return { x['id'] : x for x in j['response']['attendees'] }
+
 
 def _msr_load_fake_assigns():
     global Fake_Assigns
