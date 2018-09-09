@@ -269,6 +269,8 @@ def do_assigns():
             }
 
     print_header(fmt, col_headers)
+    if Options.sort:
+        recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
     for data in recs:
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
@@ -367,6 +369,7 @@ def process_args():
     p = sp.add_parser('assigns', help='List assignments')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
     p.add_argument('-q', '--questions', action='store_true', help='Include questions')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
