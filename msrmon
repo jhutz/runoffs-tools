@@ -24,8 +24,14 @@ opts_defaults = { 'server' : 'api.motorsportreg.com' }
 # Required options for anything that connects to MSR
 opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
 
+# Query parameters for some MSR API calls
 msr_attendee_params = { 'fields' : 'questions' }
 msr_assign_params = { 'fields' : 'vehicle_questions' }
+
+# Relevant attendee fields not included in assignment:
+msr_attendee_only_fields = [ 'email', 'registered', 'lastUpdate',
+        'emergencyContact', 'emergencyPhone', 'questions' ]
+
 
 def load_config():
     """Load the config file, if any, and provide default values for options."""
@@ -147,6 +153,19 @@ def msr_get_assign_list():
             (Options.event_id, Options.segment_id),
             msr_assign_params)
     return j['response']['assignments']
+
+
+def msr_add_attendee_info(rec, att_cache=None):
+    """Augment an assignment by adding data from the attendee record."""
+
+    id = rec['attendeeId']
+    if att_cache is None:
+        att = msr_get_attendee(id)
+    elif id not in att_cache:
+        att = att_cache[id] = msr_get_attendee(id)
+    else:
+        att = att_cache[id]
+    rec.update([ (k, att[k]) for k in msr_attendee_only_fields])
 
 def msr_get_changes():
     params = { 'segments' : Options.segment_id }
