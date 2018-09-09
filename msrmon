@@ -4,6 +4,7 @@ import os
 import sys
 import collections
 import itertools
+import pprint
 from copy import deepcopy
 from datetime import datetime, timezone
 from dateutil import parser as dateutil_parser
@@ -91,6 +92,9 @@ def msr_session():
 
 def msr_get(query, params={}):
     sess = msr_session()
+    if Options.debug:
+        sys.stderr.write('msr_get(%s)\n' % query)
+        pprint.pprint(params, stream=sys.stderr)
     r = sess.get('https://%s/rest/%s.json' % (Options.server, query), params = params)
     r.raise_for_status()
     return r.json()
@@ -99,10 +103,15 @@ def msr_get(query, params={}):
 def _msr_load_fake_attendees():
     global Fake_Attendees
     if 'Fake_Attendees' not in globals():
+        if Options.debug:
+            sys.stderr.write('Loading fake attendees from %s\n' % Options.attendee_data)
         j = json.load(Options.attendee_data)
         Fake_Attendees = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+        if Options.debug:
+            sys.stderr.write('Loaded %d fake attendees\n' % len(Fake_Attendees))
 
 def msr_get_attendee(item):
+    if Options.debug: sys.stderr.write('GET ATTENDEE %s\n' % item)
     if Options.attendee_data is not None:
         _msr_load_fake_attendees()
         return deepcopy(Fake_Attendees.get(item, None))
@@ -132,10 +141,15 @@ def msr_get_attendee_dict():
 def _msr_load_fake_assigns():
     global Fake_Assigns
     if 'Fake_Assigns' not in globals():
+        if Options.debug:
+            sys.stderr.write('Loading fake assignments from %s\n' % Options.assign_data)
         j = json.load(Options.assign_data)
         Fake_Assigns = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+        if Options.debug:
+            sys.stderr.write('Loaded %d fake assignments\n' % len(Fake_Assigns))
 
 def msr_get_assign(item):
+    if Options.debug: sys.stderr.write('GET ASSIGN %s\n' % item)
     if Options.assign_data is not None:
         _msr_load_fake_assigns()
         return deepcopy(Fake_Assigns.get(item, None))
