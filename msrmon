@@ -268,10 +268,13 @@ def do_attendees():
 
 
 def do_assigns():
+    att_cache = {}
     if Options.items is not None and len(Options.items) > 0:
         recs = [ msr_get_assign(item) for item in Options.items ]
     else:
         recs = msr_get_assign_list()
+        if Options.questions or Options.event_questions:
+            att_cache = msr_get_attendee_dict()
 
     if Options.dump:
         dumpobj(recs)
@@ -299,14 +302,19 @@ def do_assigns():
     if Options.sort:
         recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
     for data in recs:
+        if Options.questions or Options.event_questions:
+            msr_add_attendee_info(data, att_cache)
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
 
         print(fmt.format(**data).rstrip())
-        if Options.questions:
+        if Options.questions or Options.event_questions:
+            for q in sorted([ (q['header'], q['answer']) for q in data['questions'] ]):
+                print('  EQ:{0:35} {1}'.format(*q))
+        if Options.questions or Options.vehicle_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['vehicle_questions'] ]):
-                print('  {0:35} {1}'.format(*q))
+                print('  VQ:{0:35} {1}'.format(*q))
 
 
 def do_update():
@@ -397,7 +405,9 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
-    p.add_argument('-q', '--questions', action='store_true', help='Include questions')
+    p.add_argument('--event-questions', action='store_true', help='Include event questions')
+    p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
+    p.add_argument('-q', '--questions', action='store_true', help='Include all questions')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
