@@ -333,14 +333,14 @@ def do_segments():
             for grp in sorted(seg['groups'], key=lambda x: x['shortName']):
                 classes = [ class_map[x['classId']]
                         for x in seg['classToGroupMaps'] if x['groupId'] == grp['id'] ]
-                if len(classes) > 0:
+                if classes:
                     print('    ', grp['shortName'], '('+', '.join(sorted(classes))+')')
                 else:
                     print('    ', grp['shortName'])
 
 
 def do_attendees():
-    if Options.items is not None and len(Options.items) > 0:
+    if Options.items:
         recs = [ msr_get_attendee(item) for item in Options.items ]
     else:
         recs = msr_get_attendee_list()
@@ -382,7 +382,7 @@ def do_attendees():
 
 def do_assigns():
     att_cache = {}
-    if Options.items is not None and len(Options.items) > 0:
+    if Options.items:
         recs = [ msr_get_assign(item) for item in Options.items ]
     else:
         recs = msr_get_assign_list()
@@ -552,7 +552,7 @@ def process_args():
 
     required = set(getattr(Options, '_required', ()))
     missing = [ x for x in required if getattr(Options, x.replace('-', '_'), None) is None ]
-    if len(missing) > 0:
+    if missing:
         for x in missing: sys.stderr.write("--%s is required\n" % x)
         ap.print_usage(file=sys.stderr)
         ap.exit(status=2)
