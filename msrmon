@@ -11,11 +11,12 @@ from dateutil import parser as dateutil_parser
 import re
 import argparse
 import requests
+import sqlite3
 import json
 import yaml
 
 # These command-line options can be set in the config file
-opts_from_config = ('server', 'userid', 'password', 'pwfile',
+opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
             'org-id', 'event-id', 'segment-id')
 
 # Default values for some options.
@@ -81,6 +82,104 @@ def print_header(fmt, cols):
     if Options.dump: return
     print(fmt.format(**cols).rstrip())
     print(re.sub(r':[^}\d]*(\d+)[^}]*}', r':=<\1}', fmt).format(**dash(cols)))
+
+
+def db_open():
+    global DB
+    if 'DB' in globals(): return
+    DB = sqlite3.connect(Options.database, detect_types=sqlite3.PARSE_DECLTYPES)
+    DB.row_factory = sqlite3.Row
+    DB.executescript("""
+create table if not exists assignments (
+  aid           integer primary key,
+  uid           text unique not null
+);
+
+create table if not exists assign_data (
+  aid           integer not null references assignments,
+  field         text not null,
+  value         text,
+  primary key (aid, field)
+);
+
+create table if not exists questions (
+  qid           integer primary key,
+  uid           text unique not null,
+  header        text not null,
+  descr         text
+);
+
+create table if not exists answers (
+  aid           integer not null references assignments,
+  qid           integer not null references questions,
+  answer        text,
+  primary key (aid,qid)
+);
+
+create table if not exists changes (
+  xid           integer primary key,
+  uid           text unique not null,
+  aid           integer not null references assignments,
+  timestamp     timestamp,
+  authorName    text,
+  authorEmail   text,
+  class         text,
+  car           text,
+  driver        text,
+  isCarChange   int(1),
+  isRelevant    int(1),
+  printed       int(1) not null default 0,
+  appliedA      int(1) not null default 0,
+  appliedB      int(1) not null default 0,
+  appliedC      int(1) not null default 0,
+  appliedR      int(1) not null default 0
+);
+
+create table if not exists change_data (
+  xid           integer not null references changes,
+  field         text not null,
+  old_value     text,
+  new_value     text,
+  primary key (xid, field)
+);
+""")
+
+QID_Cache = {}
+
+def db_cache_qids(info):
+    needed = set([ x['id'] for x in info ]) - set(QID_Cache.keys())
+    if needed:
+        QID_Cache.update([ (x['uid'], x['qid'])
+            for x in DB.execute('select uid, qid from questions') ])
+        needed.difference_update(QID_Cache.keys())
+    if needed:
+        DB.executemany('insert into questions (uid, header, descr) values (:id,:header,:text)',
+                [ x for x in info if x['id'] in needed ])
+        QID_Cache.update([ (x['uid'], x['qid'])
+            for x in DB.execute('select uid, qid from questions') ])
+
+def db_store_answers(aid, info):
+    db_cache_qids(info)
+    DB.executemany('insert into answers (aid, qid, answer) values (?,?,?)',
+            [ (aid, QID_Cache[x['id']], x['answer']) for x in info ])
+
+def db_store_assign(rec):
+    c = DB.execute('select aid from assignments where uid=?', (rec['id'],))
+    r = c.fetchall()
+    if r:
+        aid = r[0]['aid']
+        DB.execute('delete from assign_data where aid=?', (aid,))
+        DB.execute('delete from answers where aid=?', (aid,))
+    else:
+        c = DB.execute('insert into assignments (uid) values (?)', (rec['id'],))
+        aid = c.lastrowid
+    DB.executemany('insert into assign_data (aid, field, value) values (?,?,?)',
+            [ (aid, k, v) for k, v in rec.items() if not isinstance(v, (list, dict)) ])
+    if 'questions' in rec:
+        db_store_answers(aid, rec['questions'])
+    if 'vehicle_questions' in rec:
+        db_store_answers(aid, rec['vehicle_questions'])
+
 
 def msr_session():
     global MSR
@@ -331,6 +430,16 @@ def do_assigns():
                 print('  VQ:{0:35} {1}'.format(*q))
 
 
+def do_download():
+    db_open()
+    recs = msr_get_assign_list()
+    att_cache = msr_get_attendee_dict()
+    with DB:
+        for data in recs:
+            msr_add_attendee_info(data, att_cache)
+            db_store_assign(data)
+
+
 def do_update():
     for rec in msr_get_changes():
         # Fetch assign(vehicle) and attendee(entry) questions
@@ -378,6 +487,7 @@ def process_args():
     ap.add_argument('-v', '--verbose', action='store_true',
             help='Enable verbose output')
     ap.add_argument('-c', '--config',     help='Config file')
+    ap.add_argument('-D', '--database',   help='Database file')
     ap.add_argument('--server', help='MotorsportReg API server')
     ap.add_argument('-U', '--userid',     help='MotorsportReg username')
     ap.add_argument('-P', '--password',   help='MotorsportReg password')
@@ -425,6 +535,10 @@ def process_args():
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
+
+    p = sp.add_parser('download', help='Download entry data to database')
+    p.set_defaults(_func = do_download)
+    p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id','database'))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
     p.add_argument('-t', '--since', type=parse_ts, help='Start time')
