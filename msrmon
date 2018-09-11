@@ -180,6 +180,27 @@ def db_store_assign(rec):
     if 'vehicle_questions' in rec:
         db_store_answers(aid, rec['vehicle_questions'])
 
+def db_fetch_answers(item):
+    c = DB.execute('''
+        select questions.uid as id, header, descr as text, answer
+        from answers join assignments using (aid) join questions using (qid)
+        where assignments.uid=?
+        ''', (item,))
+    return [ dict(row) for row in c ]
+
+def db_fetch_assign(item):
+    c = DB.execute('''
+        select field,value
+        from assignments join assign_data using (aid)
+        where assignments.uid=?
+        ''', (item,))
+    rec = { x['field'] : x['value'] for x in c }
+    rec['questions'] = db_fetch_answers(item)
+    return rec
+
+def db_fetch_all_assigns():
+    return [ db_fetch_assign(item[0])
+            for item in DB.execute('select uid from assignments') ]
 
 def msr_session():
     global MSR
@@ -380,15 +401,7 @@ def do_attendees():
                 print('  {0:35} {1}'.format(*q))
 
 
-def do_assigns():
-    att_cache = {}
-    if Options.items:
-        recs = [ msr_get_assign(item) for item in Options.items ]
-    else:
-        recs = msr_get_assign_list()
-        if Options.questions or Options.event_questions:
-            att_cache = msr_get_attendee_dict()
-
+def show_assign_results(recs, att_cache=None, fromdb=False):
     if Options.dump:
         dumpobj(recs)
         return
@@ -415,7 +428,7 @@ def do_assigns():
     if Options.sort:
         recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
     for data in recs:
-        if Options.questions or Options.event_questions:
+        if (Options.questions or Options.event_questions) and not fromdb:
             msr_add_attendee_info(data, att_cache)
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
@@ -429,6 +442,16 @@ def do_assigns():
             for q in sorted([ (q['header'], q['answer']) for q in data['vehicle_questions'] ]):
                 print('  VQ:{0:35} {1}'.format(*q))
 
+def do_assigns():
+    att_cache = {}
+    if Options.items:
+        recs = [ msr_get_assign(item) for item in Options.items ]
+    else:
+        recs = msr_get_assign_list()
+        if Options.questions or Options.event_questions:
+            att_cache = msr_get_attendee_dict()
+    show_assign_results(recs, att_cache)
+
 
 def do_download():
     db_open()
@@ -438,6 +461,16 @@ def do_download():
         for data in recs:
             msr_add_attendee_info(data, att_cache)
             db_store_assign(data)
+
+
+def do_entries():
+    db_open()
+    with DB:
+        if Options.items:
+            recs = [ db_fetch_assign(item) for item in Options.items ]
+        else:
+            recs = db_fetch_all_assigns()
+    show_assign_results(recs, fromdb=True)
 
 
 def do_update():
@@ -539,6 +572,17 @@ def process_args():
     p = sp.add_parser('download', help='Download entry data to database')
     p.set_defaults(_func = do_download)
     p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id','database'))
+
+    p = sp.add_parser('entries', help='List downloaded entries')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
+    p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
+    p.add_argument('--event-questions', action='store_true', help='Include event questions')
+    p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
+    p.add_argument('-q', '--questions', action='store_true', help='Include all questions')
+    p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
+    p.set_defaults(_func = do_entries)
+    p.set_defaults(_required = ('database',))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
     p.add_argument('-t', '--since', type=parse_ts, help='Start time')
