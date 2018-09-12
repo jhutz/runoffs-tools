@@ -62,6 +62,12 @@ def load_config():
         with open(Options.pwfile) as pwfile:
             Options.password = pwfile.readline()
 
+def is_uid(s):
+    if not isinstance(s, str): return False
+    if re.fullmatch('(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{16}$', s):
+        return True
+    return False
+
 def parse_ts(timestr):
     if re.match('^[0-9]+$', timestr):
         return datetime.fromtimestamp(int(timestr), timezone.utc)
@@ -319,6 +325,87 @@ def msr_get_changes():
     return j['data']
 
 
+def eval_custom_field(rec, Q, name, defn):
+    postproc = []
+    if Options.debug:
+        sys.stderr.write('eval_custom_field(%s):\n' % name)
+        pprint.pprint(defn, stream=sys.stderr)
+    if isinstance(defn, list):
+        # Definition has modifiers
+        (defn, *postproc) = defn
+    if isinstance(defn, collections.abc.Mapping):
+        if len(defn) != 1:
+            raise ValueError("Choice mapping must have exactly one key")
+        (ref, table) = next(iter(defn.items()))
+        if not isinstance(table, collections.abc.Mapping):
+            raise TypeError("Choice mapping table must be a mapping")
+        if Options.debug: sys.stderr.write('  choice(%s(%s))\n' % (ref, rec.get(ref)))
+        value = eval_custom_field(rec, Q, name + '+',
+                table.get(rec.get(ref), table.get(None)))
+    elif is_uid(defn):
+        # Question UID; None if question is not present
+        if Options.debug: sys.stderr.write('  question(%s)\n' % defn)
+        value = Q.get(defn)
+    elif isinstance(defn, str):
+        # Format string
+        if Options.debug: sys.stderr.write('  format(%s)\n' % defn)
+        value = defn.format(**rec)
+    else:
+        # Other scalar values are used as-is
+        if Options.debug: sys.stderr.write('  literal(%s)\n' % str(defn))
+        value = defn
+    if Options.debug: sys.stderr.write('  value is [%s]\n' % str(value))
+
+    for op in postproc:
+        if isinstance(op, collections.abc.Mapping):
+            # Value remapping
+            if Options.debug:
+                sys.stderr.write('  remap value: %s\n' % pprint.pformat(op))
+            nv = op.get(value, op.get(None, {}))
+            if Options.debug:
+                sys.stderr.write('     new defn: %s\n' % pprint.pformat(nv))
+            if isinstance(nv, collections.abc.Mapping) and len(nv) == 0:
+                # The empty mapping means "don't change it"
+                continue
+            value = eval_custom_field(rec, Q, name + '>', nv)
+            if Options.debug:
+                sys.stderr.write('    new value: [%s]\n' % str(value))
+        elif isinstance(op, str):
+            # Pattern splitting
+            if Options.debug:
+                sys.stderr.write('  split: %s\n' % op)
+            m = re.search(op, value)
+            if m:
+                newf = m.groupdict()
+                if Options.debug:
+                    sys.stderr.write('  matched %d fields\n' % len(newf))
+                    pprint.pprint(newf, stream=sys.stderr)
+                rec.update(newf)
+                rec['CF'].update(newf)
+    if Options.debug: sys.stderr.write('\n')
+    return value
+
+def build_custom_fields(rec):
+    if Options.debug:
+        sys.stderr.write('build_custom_fields:\n')
+        pprint.pprint(rec, stream=sys.stderr)
+    rec['CF'] = {}
+    if 'CustomFields' not in Config: return
+    if not isinstance(Config['CustomFields'], collections.abc.Sequence):
+        Config['CustomFields'] = [ Config['CustomFields'] ]
+
+    Q = {}
+    if 'questions' in rec:
+        Q.update([ (q['id'], q['answer']) for q in rec['questions'] ])
+    if 'vehicle_questions' in rec:
+        Q.update([ (q['id'], q['answer']) for q in rec['vehicle_questions'] ])
+    if Options.debug:
+        pprint.pprint(Q, stream=sys.stderr)
+    for cfset in Config['CustomFields']:
+        for cf, defn in cfset.items():
+            rec[cf] = rec['CF'][cf] = eval_custom_field(rec, Q, cf, defn)
+
+
 def do_events():
     j = msr_get('calendars/organization/%s' % Options.org_id,
             params = { 'archive' : 'true' } if Options.archive else {})
@@ -432,8 +519,11 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
     if Options.sort:
         recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
     for data in recs:
-        if (Options.questions or Options.event_questions) and not fromdb:
+        if ((Options.questions or Options.event_questions or Options.custom_fields)
+                and not fromdb):
             msr_add_attendee_info(data, att_cache)
+        if Options.custom_fields:
+            build_custom_fields(data)
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
@@ -445,6 +535,9 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
         if Options.questions or Options.vehicle_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['vehicle_questions'] ]):
                 print('  VQ:{0:35} {1}'.format(*q))
+        if Options.custom_fields:
+            for q in sorted(data['CF'].items()):
+                print('  CF:{0:35} {1}'.format(*q))
 
 def do_assigns():
     att_cache = {}
@@ -566,9 +659,10 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
+    p.add_argument('-q', '--questions', action='store_true', help='Include all questions')
     p.add_argument('--event-questions', action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
-    p.add_argument('-q', '--questions', action='store_true', help='Include all questions')
+    p.add_argument('-c', '--custom-fields', action='store_true', help='Include custom fields')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
@@ -581,9 +675,10 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
+    p.add_argument('-q', '--questions', action='store_true', help='Include all questions')
     p.add_argument('--event-questions', action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
-    p.add_argument('-q', '--questions', action='store_true', help='Include all questions')
+    p.add_argument('-c', '--custom-fields', action='store_true', help='Include custom fields')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_entries)
     p.set_defaults(_required = ('database',))
