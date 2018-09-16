@@ -12,10 +12,13 @@ import re
 import argparse
 import requests
 import sqlite3
+import csv
 import json
 import yaml
 
 Config = {}
+CSV_Fields = []
+CSV_Header = {}
 
 # These command-line options can be set in the config file
 opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
@@ -27,6 +30,23 @@ opts_defaults = { 'server' : 'api.motorsportreg.com' }
 
 # Default configuration
 config_defaults = {
+    'csvFields' : [
+        { 'segment'        : 'Segment Name' },
+        { 'vehicleNumber'  : 'No.' },
+        { 'classShort'     : 'Class' },
+        { 'groupShort'     : 'Group' },
+        { 'lastName'       : 'Last Name' },
+        { 'firstName'      : 'First Name' },
+        { 'memberId'       : 'Member #' },
+        { 'xxx-ROR'        : 'Region of Record Abbreviation' },
+        { '_homeTown'      : 'City/State' },
+        { '_MM'            : 'Vehicle Year/Make/Model' },
+        { 'color'          : 'Color' },
+        { 'transponder'    : 'Transponder ID' },
+        { 'sponsor'        : 'Sponsor' },
+        { 'registered'     : 'Registration date' },
+        { 'xxx-UID'        : 'Unique ID' },
+        ]
 }
 
 
@@ -58,6 +78,15 @@ def load_config():
     for (k,v) in config_defaults.items():
         if k not in Config:
             Config[k] = v
+    for field in Config['csvFields']:
+        if not isinstance(field, dict):
+            k = v = field
+        elif len(field) != 1:
+            raise ValueError("CSV field mapping must have exactly one key")
+        else:
+            (k,v) = next(iter(field.items()))
+        CSV_Fields.append(k)
+        CSV_Header[k] = v
 
     for key in opts_from_config:
         okey = key.replace('-','_')
@@ -504,26 +533,31 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
     if Options.dump:
         dumpobj(recs)
         return
-    if Options.long:
-        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
-    else:
-        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
-    col_headers = {
-            'vehicleNumber'   : 'No.',
-            'classShort'      : 'Class',
-            '_fullName'       : 'Name',
-            'transponder'     : 'Tx #',
-            'year'            : 'Year',
-            '_MM'             : 'Make/Model',
-            'make'            : 'Make',
-            'model'           : 'Model',
-            'color'           : 'Color',
-            'memberId'        : 'Member #',
-            '_homeTown'       : 'Home Town',
-            'sponsor'         : 'Sponsor',
-            }
 
-    print_header(fmt, col_headers)
+    if Options.csv:
+        writer = csv.DictWriter(sys.stdout, extrasaction='ignore', fieldnames=CSV_Fields)
+        writer.writerow(CSV_Header)
+    else:
+        if Options.long:
+            fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
+        else:
+            fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
+        col_headers = {
+                'vehicleNumber'   : 'No.',
+                'classShort'      : 'Class',
+                '_fullName'       : 'Name',
+                'transponder'     : 'Tx #',
+                'year'            : 'Year',
+                '_MM'             : 'Make/Model',
+                'make'            : 'Make',
+                'model'           : 'Model',
+                'color'           : 'Color',
+                'memberId'        : 'Member #',
+                '_homeTown'       : 'Home Town',
+                'sponsor'         : 'Sponsor',
+                }
+        print_header(fmt, col_headers)
+
     if Options.sort:
         recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
     for data in recs:
@@ -536,6 +570,9 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
 
+        if Options.csv:
+            writer.writerow(data)
+            continue
         print(fmt.format(**data).rstrip())
         if Options.questions or Options.event_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['questions'] ]):
@@ -671,6 +708,7 @@ def process_args():
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
+    p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
@@ -687,6 +725,7 @@ def process_args():
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
+    p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_entries)
     p.set_defaults(_required = ('database',))
