@@ -15,6 +15,8 @@ import sqlite3
 import json
 import yaml
 
+Config = {}
+
 # These command-line options can be set in the config file
 opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
             'org-id', 'event-id', 'segment-id')
@@ -22,6 +24,11 @@ opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
 # Default values for some options.
 # Only needed for options that appear in opts_from_config
 opts_defaults = { 'server' : 'api.motorsportreg.com' }
+
+# Default configuration
+config_defaults = {
+}
+
 
 # Required options for anything that connects to MSR
 opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
@@ -38,8 +45,6 @@ msr_attendee_only_fields = [ 'email', 'registered', 'lastUpdate',
 def load_config():
     """Load the config file, if any, and provide default values for options."""
 
-    global Config
-    Config = {}
     if Options.config is None:
         if 'HOME' in os.environ:
             def_cfg = os.path.join(os.environ['HOME'], '.msrmon')
@@ -50,6 +55,9 @@ def load_config():
     if Options.config is not None:
         with open(Options.config) as cfg_file:
             Config = yaml.safe_load(cfg_file)
+    for (k,v) in config_defaults.items():
+        if k not in Config:
+            Config[k] = v
 
     for key in opts_from_config:
         okey = key.replace('-','_')
