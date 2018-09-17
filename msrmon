@@ -52,6 +52,7 @@ config_defaults = {
 opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
 
 # Query parameters for some MSR API calls
+msr_member_params = { 'fields' : 'questions' }
 msr_attendee_params = { 'fields' : 'questions' }
 msr_assign_params = { 'fields' : 'vehicle_questions' }
 
@@ -263,6 +264,41 @@ def msr_get(query, params={}):
     r = sess.get('https://%s/rest/%s.json' % (Options.server, query), params = params)
     r.raise_for_status()
     return r.json()
+
+
+def _msr_load_fake_members():
+    global Fake_Members
+    if 'Fake_Members' not in globals():
+        if Options.debug:
+            sys.stderr.write('Loading fake members from %s\n' % Options.member_data)
+        j = json.load(Options.member_data)
+        Fake_Members = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+        if Options.debug:
+            sys.stderr.write('Loaded %d fake members\n' % len(Fake_Members))
+
+def msr_get_member(item):
+    if Options.debug: sys.stderr.write('GET MEMBER %s\n' % item)
+    if Options.member_data is not None:
+        _msr_load_fake_members()
+        return deepcopy(Fake_Members.get(item, None))
+    j = msr_get('members/%s' % item, msr_member_params)
+    try: rec = j['response']['members'][0]
+    except IndexError: return None
+    return rec
+
+def msr_get_member_list():
+    if Options.member_data is not None:
+        _msr_load_fake_members()
+        return [ deepcopy(x) for x in Fake_Members.values() ]
+    j = msr_get('members', params=msr_member_params)
+    return j['response']['members']
+
+def msr_get_member_dict():
+    if Options.member_data is not None:
+        _msr_load_fake_members()
+        return { k : deepcopy(v) for k,v in Fake_Members.items() }
+    j = msr_get('members', params=msr_member_params)
+    return { x['id'] : x for x in j['response']['members'] }
 
 
 def _msr_load_fake_attendees():
@@ -485,6 +521,15 @@ def do_segments():
                 else:
                     print('    ', grp['shortName'])
 
+
+def do_members():
+    if Options.items:
+        recs = [ msr_get_member(item) for item in Options.items ]
+    else:
+        recs = msr_get_member_list()
+
+    if Options.dump:
+        dumpobj(recs)
 
 def do_attendees():
     if Options.items:
@@ -730,6 +775,8 @@ def process_args():
             help='Prefetched attendee data file (for debug)')
     ap.add_argument('--assign-data', type=argparse.FileType(),
             help='Prefetched assignment data file (for debug)')
+    ap.add_argument('--member-data', type=argparse.FileType(),
+            help='Prefetched member data file (for debug)')
 
     p = sp.add_parser('help', help='Show help message or subcommand help')
     p.add_argument('subcommand', nargs='?', help='Subcommand to show help for')
@@ -747,6 +794,14 @@ def process_args():
     p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
     p.set_defaults(_func = do_segments)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
+
+    p = sp.add_parser('members', help='List members')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Member UIDs to dump')
+    p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-q', '--questions', action='store_true', help='Include questions')
+    p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
+    p.set_defaults(_func = do_members)
+    p.set_defaults(_required = opts_msr_reqd)
 
     p = sp.add_parser('attendees', help='List attendees')
     p.add_argument('items', nargs=argparse.REMAINDER, help='Attendee IDs to dump')
