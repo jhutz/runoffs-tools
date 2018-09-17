@@ -16,7 +16,6 @@ import csv
 import json
 import yaml
 
-Config = {}
 CSV_Fields = []
 CSV_Header = {}
 
@@ -65,6 +64,8 @@ msr_attendee_only_fields = [ 'email', 'registered', 'lastUpdate',
 def load_config():
     """Load the config file, if any, and provide default values for options."""
 
+    global Config
+    Config = {}
     if Options.config is None:
         if 'HOME' in os.environ:
             def_cfg = os.path.join(os.environ['HOME'], '.msrmon')
