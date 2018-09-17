@@ -104,6 +104,13 @@ def parse_ts(timestr):
                 default=datetime.now(timezone.utc).replace(
                     hour=0, minute=0, second=0, microsecond=0))
 
+def format_ts(ts):
+    if Options.raw_dates:
+        return ts.strftime('%m/%d/%Y %H:%M:%S')
+    lclts = ts.astimezone()
+    hour = int(lclts.strftime('%I'))
+    return '{0.month}/{0.day}/{0:%y} {1}:{0:%M:%S %p}'.format(lclts, hour)
+
 def dumpobj(obj):
     print(json.dumps(obj, sort_keys=True, indent=4))
 
@@ -513,6 +520,9 @@ def do_attendees():
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['registered/date'] = reg.astimezone().strftime('%Y-%m-%d')
         data['lastUpdate/date'] = upd.astimezone().strftime('%Y-%m-%d')
+        if not raw_dates:
+            data['registered'] = format_ts(reg)
+            data['lastUpdate'] = format_ts(upd)
 
         print(fmt.format(**data).rstrip())
         if Options.questions:
@@ -567,6 +577,8 @@ def show_assign_csv(recs, att_cache=None, fromdb=False):
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
+        data['registered'] = format_ts(parse_ts(data['registered']))
+        data['lastUpdate'] = format_ts(parse_ts(data['lastUpdate']))
         if 'questions' in data:
             data.update([ (q['id'], q['answer']) for q in data['questions'] ])
         if 'vehicle_questions' in data:
@@ -614,6 +626,8 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
+        data['registered'] = format_ts(parse_ts(data['registered']))
+        data['lastUpdate'] = format_ts(parse_ts(data['lastUpdate']))
 
         print(fmt.format(**data).rstrip())
         if Options.questions or Options.event_questions:
@@ -738,6 +752,7 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Attendee IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-q', '--questions', action='store_true', help='Include questions')
+    p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
     p.set_defaults(_func = do_attendees)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
@@ -751,6 +766,7 @@ def process_args():
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
     p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
+    p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
@@ -768,6 +784,7 @@ def process_args():
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
     p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
+    p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_entries)
     p.set_defaults(_required = ('database',))
