@@ -518,45 +518,62 @@ def do_attendees():
                 print('  {0:35} {1}'.format(*q))
 
 
+def show_assign_csv(recs, att_cache=None, fromdb=False):
+    # Set up columns
+    fields = {}
+    header = []
+    for field in Config['csvFields']:
+        if not isinstance(field, dict):
+            k = v = field
+        elif len(field) != 1:
+            raise ValueError("CSV field mapping must have exactly one key")
+        else:
+            (k,v) = next(iter(field.items()))
+        fields.append(k)
+        header[k] = v
+
+    writer = csv.DictWriter(sys.stdout, extrasaction='ignore', fieldnames=fields)
+    writer.writerow(header)
+
+    if Options.sort:
+        recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
+    for data in recs:
+        if not fromdb:
+            msr_add_attendee_info(data, att_cache)
+        build_custom_fields(data)
+        data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
+        data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
+        data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
+        writer.writerow(data)
+
+
 def show_assign_results(recs, att_cache=None, fromdb=False):
     if Options.dump:
         dumpobj(recs)
         return
-
     if Options.csv:
-        fields = {}
-        header = []
-        for field in Config['csvFields']:
-            if not isinstance(field, dict):
-                k = v = field
-            elif len(field) != 1:
-                raise ValueError("CSV field mapping must have exactly one key")
-            else:
-                (k,v) = next(iter(field.items()))
-            fields.append(k)
-            header[k] = v
-        writer = csv.DictWriter(sys.stdout, extrasaction='ignore', fieldnames=fields)
-        writer.writerow(header)
+        show_assign_csv(recs, att_cache=att_cache, fromdb=fromdb)
+        return
+
+    if Options.long:
+        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
     else:
-        if Options.long:
-            fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
-        else:
-            fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
-        col_headers = {
-                'vehicleNumber'   : 'No.',
-                'classShort'      : 'Class',
-                '_fullName'       : 'Name',
-                'transponder'     : 'Tx #',
-                'year'            : 'Year',
-                '_MM'             : 'Make/Model',
-                'make'            : 'Make',
-                'model'           : 'Model',
-                'color'           : 'Color',
-                'memberId'        : 'Member #',
-                '_homeTown'       : 'Home Town',
-                'sponsor'         : 'Sponsor',
-                }
-        print_header(fmt, col_headers)
+        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
+    col_headers = {
+            'vehicleNumber'   : 'No.',
+            'classShort'      : 'Class',
+            '_fullName'       : 'Name',
+            'transponder'     : 'Tx #',
+            'year'            : 'Year',
+            '_MM'             : 'Make/Model',
+            'make'            : 'Make',
+            'model'           : 'Model',
+            'color'           : 'Color',
+            'memberId'        : 'Member #',
+            '_homeTown'       : 'Home Town',
+            'sponsor'         : 'Sponsor',
+            }
+    print_header(fmt, col_headers)
 
     if Options.sort:
         recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
@@ -570,9 +587,6 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
 
-        if Options.csv:
-            writer.writerow(data)
-            continue
         print(fmt.format(**data).rstrip())
         if Options.questions or Options.event_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['questions'] ]):
