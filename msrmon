@@ -42,7 +42,9 @@ config_defaults = {
         { 'sponsor'        : 'Sponsor' },
         { 'registered'     : 'Registration date' },
         { 'xxx-UID'        : 'Unique ID' },
-        ]
+        ],
+    'csvEventQuestions' : [],
+    'csvVehicleQuestions' : [],
 }
 
 
@@ -520,8 +522,8 @@ def do_attendees():
 
 def show_assign_csv(recs, att_cache=None, fromdb=False):
     # Set up columns
-    fields = {}
-    header = []
+    fields = []
+    header = {}
     for field in Config['csvFields']:
         if not isinstance(field, dict):
             k = v = field
@@ -531,8 +533,31 @@ def show_assign_csv(recs, att_cache=None, fromdb=False):
             (k,v) = next(iter(field.items()))
         fields.append(k)
         header[k] = v
+    if Options.questions or Options.event_questions:
+        # Add event question columns
+        if fromdb:
+            att_data = recs
+        else:
+            if att_cache is None: att_cache = {}
+            if not att_cache:
+                for id in [ rec['id'] for rec in recs ]:
+                    att_cache[id] = msr_get_attendee(id)
+            att_data = att_cache
+        Q = { q['header'] : q['id'] for rec in att_data for q in rec['questions'] }
+        header.update((v,k) for k,v in Q.items())
+        fields.extend(Q.pop(f,f) for f in Config['csvEventQuestions'])
+        header.update((f,f) for f in fields if f not in header)
+        fields.extend(sorted(Q.values()))
+    if Options.questions or Options.vehicle_questions:
+        # Add vehicle question columns
+        Q = { q['header'] : q['id'] for rec in recs for q in rec['vehicle_questions'] }
+        header.update((v,k) for k,v in Q.items())
+        fields.extend(Q.pop(f,f) for f in Config['csvVehicleQuestions'])
+        header.update((f,f) for f in fields if f not in header)
+        fields.extend(sorted(Q.values()))
 
-    writer = csv.DictWriter(sys.stdout, extrasaction='ignore', fieldnames=fields)
+    writer = csv.DictWriter(sys.stdout, fieldnames=fields,
+            extrasaction='ignore', quoting=csv.QUOTE_ALL)
     writer.writerow(header)
 
     if Options.sort:
@@ -544,6 +569,10 @@ def show_assign_csv(recs, att_cache=None, fromdb=False):
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
+        if 'questions' in data:
+            data.update([ (q['id'], q['answer']) for q in data['questions'] ])
+        if 'vehicle_questions' in data:
+            data.update([ (q['id'], q['answer']) for q in data['vehicle_questions'] ])
         writer.writerow(data)
 
 
