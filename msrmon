@@ -560,8 +560,6 @@ def show_assign_csv(recs, att_cache=None, fromdb=False):
             extrasaction='ignore', quoting=csv.QUOTE_ALL)
     writer.writerow(header)
 
-    if Options.sort:
-        recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
     for data in recs:
         if not fromdb:
             msr_add_attendee_info(data, att_cache)
@@ -577,6 +575,9 @@ def show_assign_csv(recs, att_cache=None, fromdb=False):
 
 
 def show_assign_results(recs, att_cache=None, fromdb=False):
+    if Options.sort:
+        recs = sorted(recs, key=lambda r:
+                (r['classShort'], int(r['vehicleNumber']), str(r['vehicleNumber'])))
     if Options.dump:
         dumpobj(recs)
         return
@@ -604,8 +605,6 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
             }
     print_header(fmt, col_headers)
 
-    if Options.sort:
-        recs = sorted(recs, key=lambda r: (r['classShort'], str(r['vehicleNumber'])))
     for data in recs:
         if ((Options.questions or Options.event_questions or Options.custom_fields)
                 and not fromdb):
