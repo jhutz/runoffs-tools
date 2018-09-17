@@ -16,9 +16,6 @@ import csv
 import json
 import yaml
 
-CSV_Fields = []
-CSV_Header = {}
-
 # These command-line options can be set in the config file
 opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
             'org-id', 'event-id', 'segment-id')
@@ -79,15 +76,6 @@ def load_config():
     for (k,v) in config_defaults.items():
         if k not in Config:
             Config[k] = v
-    for field in Config['csvFields']:
-        if not isinstance(field, dict):
-            k = v = field
-        elif len(field) != 1:
-            raise ValueError("CSV field mapping must have exactly one key")
-        else:
-            (k,v) = next(iter(field.items()))
-        CSV_Fields.append(k)
-        CSV_Header[k] = v
 
     for key in opts_from_config:
         okey = key.replace('-','_')
@@ -536,8 +524,19 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
         return
 
     if Options.csv:
-        writer = csv.DictWriter(sys.stdout, extrasaction='ignore', fieldnames=CSV_Fields)
-        writer.writerow(CSV_Header)
+        fields = {}
+        header = []
+        for field in Config['csvFields']:
+            if not isinstance(field, dict):
+                k = v = field
+            elif len(field) != 1:
+                raise ValueError("CSV field mapping must have exactly one key")
+            else:
+                (k,v) = next(iter(field.items()))
+            fields.append(k)
+            header[k] = v
+        writer = csv.DictWriter(sys.stdout, extrasaction='ignore', fieldnames=fields)
+        writer.writerow(header)
     else:
         if Options.long:
             fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
