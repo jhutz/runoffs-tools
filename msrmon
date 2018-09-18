@@ -34,7 +34,7 @@ config_defaults = {
         { 'lastName'       : 'Last Name' },
         { 'firstName'      : 'First Name' },
         { 'memberId'       : 'Member #' },
-        { 'xxx-ROR'        : 'Region of Record Abbreviation' },
+        { '_RoR'           : 'Region of Record Abbreviation' },
         { '_homeTown'      : 'City/State' },
         { '_MM'            : 'Vehicle Year/Make/Model' },
         { 'color'          : 'Color' },
@@ -61,6 +61,70 @@ msr_member_only_fields = [ 'regionOfRecord', 'memberEnd', 'uniqueId' ]
 msr_attendee_only_fields = [ 'email', 'registered', 'lastUpdate',
         'emergencyContact', 'emergencyPhone', 'questions' ]
 
+# This is a terrible kludge!
+ror_abbrev = {
+  'Alamo'                              : 'Almo',
+  'Arizona'                            : 'AZ',
+  'Arizona Border'                     : 'AZB',
+  'Atlanta'                            : 'Atl',
+  'Big Sky'                            : 'BSky',
+  'Blackhawk Valley'                   : 'BVR',
+  'Blue Ridge'                         : 'BRR',
+  'Buccaneer'                          : 'Bucc',
+  'California Sports Car Club/CalClub' : 'CSCC',
+  'Central Carolinas'                  : 'CCR',
+  'Central Florida'                    : 'CFR',
+  'Chicago'                            : 'CHI',
+  'Cincinnati'                         : 'CIN',
+  'Colorado'                           : 'Colo',
+  'Continental Divide'                 : 'CDR',
+  'Detroit'                            : 'DET',
+  'Finger Lakes'                       : 'FLR',
+  'Florida'                            : 'FLA',
+  'Glen'                               : 'GLN',
+  'Houston'                            : 'Hous',
+  'Indianapolis'                       : 'IND',
+  'Kansas'                             : 'KAN',
+  'Kansas City'                        : 'KCR',
+  "Land O' Lakes"                      : 'LOL',
+  'Las Vegas'                          : 'LV',
+  'Lone Star'                          : 'LnSt',
+  'Mahoning Valley'                    : 'MVR',
+  'Mid South'                          : 'MIDS',
+  'Milwaukee'                          : 'Milw',
+  'Mohawk-Hudson'                      : 'MHR',
+  'Montana'                            : 'Mont',
+  'Nebraska'                           : 'NEB',
+  'Neohio'                             : 'NEO',
+  'New England'                        : 'NER',
+  'New York'                           : 'NYR',
+  'North Carolina'                     : 'NCR',
+  'Northeastern Penna'                 : 'NEP',
+  'Northern New Jersey'                : 'NNJ',
+  'Northwest'                          : 'Nwst',
+  'Ohio Valley'                        : 'OVR',
+  'Oklahoma'                           : 'OKLA',
+  'Old Dominion'                       : 'ODR',
+  'Oregon'                             : 'Ore',
+  'Ozark Mountain'                     : 'OZMT',
+  'Philadelphia'                       : 'PHL',
+  'Reno'                               : 'Reno',
+  'Rio Grande'                         : 'RioG',
+  'San Diego'                          : 'SanD',
+  'San Francisco'                      : 'SFR',
+  'Snake River'                        : 'SnRv',
+  'South Jersey (SJR)'                 : 'SJR',
+# 'Southwest Division (SOWDiv)'        : '',
+  'St. Louis'                          : 'STL',
+  'Steel Cities'                       : 'STC',
+  'Susquehanna'                        : 'SUS',
+  'Tennessee'                          : 'TEN',
+  'Texas'                              : 'Tex',
+  'Washington DC'                      : 'WDC',
+  'West Texas'                         : 'WTex',
+  'Western Michigan'                   : 'WMR',
+  'Western New York'                   : 'WNY',
+  }
 
 def load_config():
     """Load the config file, if any, and provide default values for options."""
@@ -383,6 +447,8 @@ def msr_add_member_info(rec, mem_cache=None):
     else:
         mem = mem_cache[id]
     rec.update((k, mem[k]) for k in msr_member_only_fields)
+    ror = mem['regionOfRecord']
+    rec['_RoR'] = ror_abbrev.get(ror, ror)
 
 def msr_add_attendee_info(rec, att_cache=None):
     """Augment an assignment by adding data from the attendee record."""
