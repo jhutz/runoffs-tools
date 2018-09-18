@@ -41,7 +41,7 @@ config_defaults = {
         { 'transponder'    : 'Transponder ID' },
         { 'sponsor'        : 'Sponsor' },
         { 'registered'     : 'Registration date' },
-        { 'xxx-UID'        : 'Unique ID' },
+        { 'uniqueId'       : 'Unique ID' },
         ],
     'csvEventQuestions' : [],
     'csvVehicleQuestions' : [],
@@ -56,7 +56,8 @@ msr_member_params = { 'fields' : 'questions' }
 msr_attendee_params = { 'fields' : 'questions' }
 msr_assign_params = { 'fields' : 'vehicle_questions' }
 
-# Relevant attendee fields not included in assignment:
+# Relevant fields not included in assignment:
+msr_member_only_fields = [ 'regionOfRecord', 'memberEnd', 'uniqueId' ]
 msr_attendee_only_fields = [ 'email', 'registered', 'lastUpdate',
         'emergencyContact', 'emergencyPhone', 'questions' ]
 
@@ -370,6 +371,19 @@ def msr_get_assign_list():
     return j['response']['assignments']
 
 
+def msr_add_member_info(rec, mem_cache=None):
+    """Augment an assignment or attendee by adding data from the member record."""
+
+    uri = rec['memberuri']
+    id = uri.replace('/members/','')
+    if mem_cache is None:
+        mem = msr_get_member(id)
+    elif id not in mem_cache:
+        mem = mem_cache[id] = msr_get_member(id)
+    else:
+        mem = mem_cache[id]
+    rec.update((k, mem[k]) for k in msr_member_only_fields)
+
 def msr_add_attendee_info(rec, att_cache=None):
     """Augment an assignment by adding data from the attendee record."""
 
@@ -575,7 +589,7 @@ def do_attendees():
                 print('  {0:35} {1}'.format(*q))
 
 
-def show_assign_csv(recs, att_cache=None, fromdb=False):
+def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
     # Set up columns
     fields = []
     header = {}
@@ -617,6 +631,7 @@ def show_assign_csv(recs, att_cache=None, fromdb=False):
 
     for data in recs:
         if not fromdb:
+            msr_add_member_info(data, mem_cache)
             msr_add_attendee_info(data, att_cache)
         build_custom_fields(data)
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
@@ -631,7 +646,7 @@ def show_assign_csv(recs, att_cache=None, fromdb=False):
         writer.writerow(data)
 
 
-def show_assign_results(recs, att_cache=None, fromdb=False):
+def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
     if Options.sort:
         recs = sorted(recs, key=lambda r:
                 (r['classShort'], int(r['vehicleNumber']), str(r['vehicleNumber'])))
@@ -639,7 +654,7 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
         dumpobj(recs)
         return
     if Options.csv:
-        show_assign_csv(recs, att_cache=att_cache, fromdb=fromdb)
+        show_assign_csv(recs, att_cache=att_cache, mem_cache=mem_cache, fromdb=fromdb)
         return
 
     if Options.long:
@@ -663,8 +678,10 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
     print_header(fmt, col_headers)
 
     for data in recs:
-        if ((Options.questions or Options.event_questions or Options.custom_fields)
-                and not fromdb):
+        if Options.custom_fields and not fromdb:
+            msr_add_member_info(data, mem_cache)
+            msr_add_attendee_info(data, att_cache)
+        elif (Options.questions or Options.event_questions) and not fromdb:
             msr_add_attendee_info(data, att_cache)
         if Options.custom_fields:
             build_custom_fields(data)
@@ -687,21 +704,27 @@ def show_assign_results(recs, att_cache=None, fromdb=False):
 
 def do_assigns():
     att_cache = {}
+    mem_cache = {}
     if Options.items:
         recs = [ msr_get_assign(item) for item in Options.items ]
     else:
         recs = msr_get_assign_list()
-        if Options.questions or Options.event_questions:
+        if Options.custom_fields or Options.csv:
+            mem_cache = msr_get_member_dict()
             att_cache = msr_get_attendee_dict()
-    show_assign_results(recs, att_cache)
+        elif Options.questions or Options.event_questions:
+            att_cache = msr_get_attendee_dict()
+    show_assign_results(recs, att_cache, mem_cache)
 
 
 def do_download():
     db_open()
     recs = msr_get_assign_list()
     att_cache = msr_get_attendee_dict()
+    mem_cache = msr_get_member_dict()
     with DB:
         for data in recs:
+            msr_add_member_info(data, mem_cache)
             msr_add_attendee_info(data, att_cache)
             db_store_assign(data)
 
