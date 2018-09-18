@@ -332,6 +332,11 @@ def msr_get(query, params={}):
     r.raise_for_status()
     return r.json()
 
+def _msr_cleanup(rec):
+    return { k: v.strip() if isinstance(v, str)
+            else [ _msr_cleanup(x) for x in v ] if isinstance(v, list)
+            else v
+            for k,v in rec.items() }
 
 def _msr_load_fake_members():
     global Fake_Members
@@ -339,7 +344,8 @@ def _msr_load_fake_members():
         if Options.debug:
             sys.stderr.write('Loading fake members from %s\n' % Options.member_data)
         j = json.load(Options.member_data)
-        Fake_Members = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+        Fake_Members = collections.OrderedDict(
+                [ (x['id'], x) for x in map(_msr_cleanup, j) ] )
         if Options.debug:
             sys.stderr.write('Loaded %d fake members\n' % len(Fake_Members))
 
@@ -351,20 +357,24 @@ def msr_get_member(item):
     j = msr_get('members/%s' % item, msr_member_params)
     try: rec = j['response']['members'][0]
     except IndexError: return None
-    return rec
+    return _msr_cleanup(rec)
 
-def msr_get_member_list():
+def msr_get_member_list(cleanup=True):
     if Options.member_data is not None:
         _msr_load_fake_members()
         return [ deepcopy(x) for x in Fake_Members.values() ]
     j = msr_get('members', params=msr_member_params)
+    if cleanup:
+        return map(_msr_cleanup, j['response']['members'])
     return j['response']['members']
 
-def msr_get_member_dict():
+def msr_get_member_dict(cleanup=True):
     if Options.member_data is not None:
         _msr_load_fake_members()
         return { k : deepcopy(v) for k,v in Fake_Members.items() }
     j = msr_get('members', params=msr_member_params)
+    if cleanup:
+        return { x['id'] : _msr_cleanup(x) for x in j['response']['members'] }
     return { x['id'] : x for x in j['response']['members'] }
 
 
@@ -374,7 +384,9 @@ def _msr_load_fake_attendees():
         if Options.debug:
             sys.stderr.write('Loading fake attendees from %s\n' % Options.attendee_data)
         j = json.load(Options.attendee_data)
-        Fake_Attendees = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+        for rec in j: _msr_cleanup(rec)
+        Fake_Attendees = collections.OrderedDict(
+                [ (x['id'], x) for x in map(_msr_cleanup, j) ] )
         if Options.debug:
             sys.stderr.write('Loaded %d fake attendees\n' % len(Fake_Attendees))
 
@@ -387,22 +399,26 @@ def msr_get_attendee(item):
             params = msr_attendee_params)
     try: rec = j['response']['attendees'][0]
     except IndexError: return None
-    return rec
+    return _msr_cleanup(rec)
 
-def msr_get_attendee_list():
+def msr_get_attendee_list(cleanup=True):
     if Options.attendee_data is not None:
         _msr_load_fake_attendees()
         return [ deepcopy(x) for x in Fake_Attendees.values() ]
     j = msr_get('events/%s/attendees' % Options.event_id,
             params = msr_attendee_params)
+    if cleanup:
+        return map(_msr_cleanup, j['response']['attendees'])
     return j['response']['attendees']
 
-def msr_get_attendee_dict():
+def msr_get_attendee_dict(cleanup=True):
     if Options.attendee_data is not None:
         _msr_load_fake_attendees()
         return { k : deepcopy(v) for k,v in Fake_Attendees.items() }
     j = msr_get('events/%s/attendees' % Options.event_id,
             params = msr_attendee_params)
+    if cleanup:
+        return { x['id'] : _msr_cleanup(x) for x in j['response']['attendees'] }
     return { x['id'] : x for x in j['response']['attendees'] }
 
 
@@ -412,7 +428,9 @@ def _msr_load_fake_assigns():
         if Options.debug:
             sys.stderr.write('Loading fake assignments from %s\n' % Options.assign_data)
         j = json.load(Options.assign_data)
-        Fake_Assigns = collections.OrderedDict( [ (x['id'], x) for x in j ] )
+        for rec in j: _msr_cleanup(rec)
+        Fake_Assigns = collections.OrderedDict(
+                [ (x['id'], x) for x in map(_msr_cleanup, j) ] )
         if Options.debug:
             sys.stderr.write('Loaded %d fake assignments\n' % len(Fake_Assigns))
 
@@ -425,15 +443,17 @@ def msr_get_assign(item):
             msr_assign_params)
     try: rec = j['response']['assignments'][0]
     except IndexError: return None
-    return rec
+    return _msr_cleanup(rec)
 
-def msr_get_assign_list():
+def msr_get_assign_list(cleanup=True):
     if Options.assign_data is not None:
         _msr_load_fake_assigns()
         return [ deepcopy(x) for x in Fake_Assigns.values() ]
     j = msr_get('events/%s/segments/%s/assignments' %
             (Options.event_id, Options.segment_id),
             msr_assign_params)
+    if cleanup:
+        return map(_msr_cleanup, j['response']['assignments'])
     return j['response']['assignments']
 
 
@@ -608,7 +628,7 @@ def do_members():
     if Options.items:
         recs = [ msr_get_member(item) for item in Options.items ]
     else:
-        recs = msr_get_member_list()
+        recs = msr_get_member_list(cleanup=not Options.dump)
 
     if Options.dump:
         dumpobj(recs)
@@ -617,7 +637,7 @@ def do_attendees():
     if Options.items:
         recs = [ msr_get_attendee(item) for item in Options.items ]
     else:
-        recs = msr_get_attendee_list()
+        recs = msr_get_attendee_list(cleanup=not Options.dump)
 
     if Options.dump:
         dumpobj(recs)
@@ -777,12 +797,12 @@ def do_assigns():
     if Options.items:
         recs = [ msr_get_assign(item) for item in Options.items ]
     else:
-        recs = msr_get_assign_list()
+        recs = msr_get_assign_list(cleanup=not Options.dump)
         if Options.custom_fields or Options.csv:
-            mem_cache = msr_get_member_dict()
-            att_cache = msr_get_attendee_dict()
+            mem_cache = msr_get_member_dict(cleanup=not Options.dump)
+            att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
         elif Options.questions or Options.event_questions:
-            att_cache = msr_get_attendee_dict()
+            att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
     show_assign_results(recs, att_cache, mem_cache)
 
 
