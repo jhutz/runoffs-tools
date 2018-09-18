@@ -7,7 +7,7 @@ import itertools
 import pprint
 from copy import deepcopy
 from datetime import datetime, timezone
-from dateutil import parser as dateutil_parser
+from dateutil import parser as dateutil_parser, tz
 import re
 import argparse
 import requests
@@ -18,7 +18,7 @@ import yaml
 
 # These command-line options can be set in the config file
 opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
-            'org-id', 'event-id', 'segment-id')
+            'org-id', 'event-id', 'segment-id', 'timezone')
 
 # Default values for some options.
 # Only needed for options that appear in opts_from_config
@@ -144,6 +144,8 @@ def load_config():
     for (k,v) in config_defaults.items():
         if k not in Config:
             Config[k] = v
+    if 'timezone' in Config:
+        Config['timezone'] = tz.gettz(Config['timezone'])
 
     for key in opts_from_config:
         okey = key.replace('-','_')
@@ -173,7 +175,7 @@ def parse_ts(timestr):
 def format_ts(ts):
     if Options.raw_dates:
         return ts.strftime('%m/%d/%Y %H:%M:%S')
-    lclts = ts.astimezone()
+    lclts = ts.astimezone(Options.timezone)
     hour = int(lclts.strftime('%I'))
     return '{0.month}/{0.day}/{0:%y} {1}:{0:%M:%S %p}'.format(lclts, hour)
 
@@ -643,8 +645,8 @@ def do_attendees():
         upd = parse_ts(data['lastUpdate'])
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
-        data['registered/date'] = reg.astimezone().strftime('%Y-%m-%d')
-        data['lastUpdate/date'] = upd.astimezone().strftime('%Y-%m-%d')
+        data['registered/date'] = reg.astimezone(Options.timezone).strftime('%Y-%m-%d')
+        data['lastUpdate/date'] = upd.astimezone(Options.timezone).strftime('%Y-%m-%d')
         if not raw_dates:
             data['registered'] = format_ts(reg)
             data['lastUpdate'] = format_ts(upd)
@@ -860,6 +862,7 @@ def process_args():
     ap.add_argument('-O', '--org-id',     help='Organization ID')
     ap.add_argument('-E', '--event-id',   help='Event ID')
     ap.add_argument('-S', '--segment-id', help='Segment ID')
+    ap.add_argument('--timezone', '--tz', type=tz.gettz, help='Timezone for dates')
     ap.add_argument('--attendee-data', type=argparse.FileType(),
             help='Prefetched attendee data file (for debug)')
     ap.add_argument('--assign-data', type=argparse.FileType(),
