@@ -3,6 +3,7 @@
 import os
 import sys
 import collections
+import functools
 import itertools
 import pprint
 from copy import deepcopy
@@ -727,6 +728,10 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
         data['registered'] = format_ts(parse_ts(data['registered']))
         data['lastUpdate'] = format_ts(parse_ts(data['lastUpdate']))
+        if (Options.filter and not
+                functools.reduce(lambda x,f: x and f[1].search(data[f[0]]),
+                    Options.filter, True)):
+            continue
         if 'questions' in data:
             data.update([ (q['id'], q['answer']) for q in data['questions'] ])
         if 'vehicle_questions' in data:
@@ -779,7 +784,10 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
         data['_MM']       = ' '.join((str(data['make']),      str(data['model'])),)
         data['registered'] = format_ts(parse_ts(data['registered']))
         data['lastUpdate'] = format_ts(parse_ts(data['lastUpdate']))
-
+        if (Options.filter and not
+                functools.reduce(lambda x,f: x and f[1].search(data[f[0]]),
+                    Options.filter, True)):
+            continue
         print(fmt.format(**data).rstrip())
         if Options.questions or Options.event_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['questions'] ]):
@@ -929,6 +937,8 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
+    p.add_argument('-f', '--filter', action='append', help='Filter field=pattern',
+            type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
     p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
@@ -947,6 +957,8 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
+    p.add_argument('-f', '--filter', action='append', help='Filter field=pattern',
+            type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
     p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
