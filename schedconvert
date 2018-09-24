@@ -19,19 +19,20 @@ our $QualTime;
 our $RaceTime;
 our $RaceLaps;
 
-our $QualTimeAM = 15;
+our $QualTimeAM = 20;
 our $QualTimePM;
 
 our %Categories = (
-  'AS/GT1/GT2/GT3/P2/T1'  => [qw[AS GT1 GT2 GT3 P2 T1]],
-  'B-Spec/STL/T4'         => [qw[B-Spec STL T4]],
-  'EP/FP/HP/FF'           => [qw[EP FF FP HP]],
-  'F5/GTL'                => [qw[F5 GTL]],
-  'FA/FC/T2'              => [qw[FA FC T2]],
-  'FB/STU'                => [qw[FB STU]],
-  'FE/FM/P1'              => [qw[FE FM P1]],
-  'SRF/T3'                => [qw[SRF T3]],
-  # Single-class groups: FV SM SRF3
+  'AS/T1'      => [qw[AS T1]],
+  'EP/GTL'     => [qw[EP GTL]],
+  'FA/FB'      => [qw[FA FB]],
+  'FE/FE2/FM'  => [qw[FE FE2 FM]],
+  'FF/F5'      => [qw[FF F5]],
+  'FP/HP'      => [qw[FP HP]],
+  'P1/P2'      => [qw[P1 P2]],
+  'T3/STU'     => [qw[T3 STU]],
+  'T4/B-Spec'  => [qw[T4 B-Spec]],
+  # Single-class groups: FC FV GT1 GT2 GT3 SM SRF3 STL T2
 );
 our %ClassCategory = ();
 foreach my $cat (keys %Categories) {
