@@ -458,31 +458,31 @@ def msr_get_assign_list(cleanup=True):
     return j['response']['assignments']
 
 
-def msr_add_member_info(rec, mem_cache=None):
+def msr_add_member_info(rec, cache=None, mem=None):
     """Augment an assignment or attendee by adding data from the member record."""
-
-    uri = rec['memberuri']
-    id = uri.replace('/members/','')
-    if mem_cache is None:
-        mem = msr_get_member(id)
-    elif id not in mem_cache:
-        mem = mem_cache[id] = msr_get_member(id)
-    else:
-        mem = mem_cache[id]
+    if mem is None:
+        uri = rec['memberuri']
+        id = uri.replace('/members/','')
+        if cache is None:
+            mem = msr_get_member(id)
+        elif id not in cache:
+            mem = cache[id] = msr_get_member(id)
+        else:
+            mem = cache[id]
     rec.update((k, mem[k]) for k in msr_member_only_fields)
     ror = mem['regionOfRecord']
     rec['_RoR'] = ror_abbrev.get(ror, ror)
 
-def msr_add_attendee_info(rec, att_cache=None):
+def msr_add_attendee_info(rec, cache=None, att=None):
     """Augment an assignment by adding data from the attendee record."""
-
-    id = rec['attendeeId']
-    if att_cache is None:
-        att = msr_get_attendee(id)
-    elif id not in att_cache:
-        att = att_cache[id] = msr_get_attendee(id)
-    else:
-        att = att_cache[id]
+    if att is None:
+        id = rec['attendeeId']
+        if cache is None:
+            att = msr_get_attendee(id)
+        elif id not in cache:
+            att = cache[id] = msr_get_attendee(id)
+        else:
+            att = cache[id]
     rec.update([ (k, att[k]) for k in msr_attendee_only_fields])
 
 def msr_get_changes():
@@ -720,8 +720,8 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
 
     for data in recs:
         if not fromdb:
-            msr_add_member_info(data, mem_cache)
-            msr_add_attendee_info(data, att_cache)
+            msr_add_member_info(data, cache=mem_cache)
+            msr_add_attendee_info(data, cache=att_cache)
         build_custom_fields(data)
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
@@ -773,10 +773,10 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
 
     for data in recs:
         if Options.custom_fields and not fromdb:
-            msr_add_member_info(data, mem_cache)
-            msr_add_attendee_info(data, att_cache)
+            msr_add_member_info(data, cache=mem_cache)
+            msr_add_attendee_info(data, cache=att_cache)
         elif (Options.questions or Options.event_questions) and not fromdb:
-            msr_add_attendee_info(data, att_cache)
+            msr_add_attendee_info(data, cache=att_cache)
         if Options.custom_fields:
             build_custom_fields(data)
         data['_fullName'] = ' '.join((str(data['firstName']), str(data['lastName'])),)
@@ -821,8 +821,8 @@ def do_download():
     mem_cache = msr_get_member_dict()
     with DB:
         for data in recs:
-            msr_add_member_info(data, mem_cache)
-            msr_add_attendee_info(data, att_cache)
+            msr_add_member_info(data, cache=mem_cache)
+            msr_add_attendee_info(data, cache=att_cache)
             db_store_assign(data)
 
 
