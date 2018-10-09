@@ -68,10 +68,31 @@ msr_member_params = { 'fields' : 'questions' }
 msr_attendee_params = { 'fields' : 'questions' }
 msr_assign_params = { 'fields' : 'vehicle_questions' }
 
-# Relevant fields not included in assignment:
+# Relevant fields not included in member/assignment:
 msr_member_only_fields = [ 'regionOfRecord', 'memberEnd', 'uniqueId' ]
-msr_attendee_only_fields = [ 'email', 'registered', 'lastUpdate',
-        'emergencyContact', 'emergencyPhone', 'questions' ]
+msr_attendee_only_fields = [ 'lastUpdate', 'emergencyContact', 'emergencyPhone' ]
+msr_attendee_only_fields2 = [ 'email', 'registered' ]
+
+# Fields appearing in changes with different names than in the assignment
+# The RHS is the name used in the assignment record, or None to ignore
+msr_change_field_names = {
+        ''                              : None,
+        'classModifierShortDescription' : 'classModifier',
+        'attendeeStatus'                : 'status',
+        'vchclass'                      : 'classShort',
+        'dateRegistered'                : 'registered',
+        #'uidvehicle'                    : None, #XXX
+        'uidmember'                     : None, #XXX
+        'entrantEmail'                  : None,
+        'entrantFirstName'              : None,
+        'entrantLastName'               : None,
+        'entrantMemberId'               : None,
+        'clubMemberStatus'              : None,
+        'clubName'                      : None,
+        'eventName'                     : None,
+        'part'                          : None,
+        'uidclub'                       : None,
+        }
 
 # This is a terrible kludge!
 ror_abbrev = {
@@ -567,6 +588,8 @@ def msr_add_attendee_info(rec, cache=None, att=None):
         else:
             att = cache[id]
     rec.update([ (k, att[k]) for k in msr_attendee_only_fields])
+    rec.update([ (k, att[k]) for k in msr_attendee_only_fields2])
+    rec['questions'] = att['questions']
 
 def msr_get_changes(cleanup=True):
     if Options.change_data is not None:
@@ -945,28 +968,84 @@ def do_entries():
 
 
 def do_update():
-    for rec in msr_get_changes():
-        # Fetch assign(vehicle) and attendee(entry) questions
-        # Apply special-case field mappings
+    db_open()
+    for change in msr_get_changes():
+        # Generate some change metadata fields
+        cb = change.get('changedBy',{})
+        change['authorName'] = ' '.join((cb.get('firstName'), cb.get('lastName'))).strip()
+        change['authorEmail'] = cb.get('email')
+        change['ts'] = parse_ts(change['ts'])
 
-        # BEGIN TRANSACTION
-        # Ensure assign UID and all question UIDs are in database
-        # This is a separate transaction so it commits even if below aborts
-        # END TRANSACTION
+        # affectedColumns is not very useful; it misses columns which were deleted,
+        # ignores some columns entirely, and is inconsistent about whether it uses
+        # the field names from old/new, afterchange, or the assignment record.
+        # So, throw it away and recompute it from the old/new keys
+        change['affectedColumns'] = set(change['old'].keys() | change['new'].keys())
 
-        # BEGIN TRANSACTION
-        # Compare questions against DB; compute diffs; update DB
-        # Is change in database already? If so:
-        # - With --force, blow away existing field diffs
-        # - Otherwise, if there are no question diffs, move on to next change
-        # - Otherwise, cons up a fake change to record the question diffs
-        # Derive custom field values from questions
-        # Derive old/new values for composite fields if any component changed
-        # Figure out if this is an "interesting" change
-        # Add/update change metadata
-        # Add field diffs
+        # Prefetch some related data from MSR
+        asn = msr_get_assign(change['uidAssignment'])
+        att = msr_get_attendee(change['attendeeId'])
+        mem = msr_get_member(att['memberuri'].replace('/members/',''))
 
-        pass
+        with DB:
+            # Fetch assignment from database
+            old_rec = db_fetch_assign(change['uidAssignment'])
+            new_rec = deepcopy(old_rec)
+
+            # If this is a new entry, the assignment might not be in the database.
+            # If that is the case, we need to pre-populate certain key fields
+            # that are not included in the change record.
+            if asn and 'id' not in new_rec: new_rec['id'] = asn['id']
+            if 'attendeeId' not in new_rec: new_rec['attendeeId'] = att['id']
+            if 'memberuri'  not in new_rec: new_rec['memberuri'] = mem['uri']
+
+            # Create a representation of the assignment post-change
+            msr_add_member_info(new_rec, mem=mem)
+            msr_add_attendee_info(new_rec, att=att)
+            new_rec['vehicle_questions'] = asn['vehicle_questions'] if asn else {}
+            for field in change['affectedColumns']:
+                afield = msr_change_field_names.get(field, field)
+                if afield is not None:
+                    new_rec[afield] = change['new'].get(field)
+
+            # Detect differences in member, attendee fields
+            # XXX special handling for uidvehicle => vehicleUri ?
+            for field in msr_member_only_fields + msr_attendee_only_fields:
+                if str(old_rec.get(field)) != str(new_rec.get(field)):
+                    change['affectedColumns'].add(field)
+                    change['old'][field] = old_rec.get(field)
+                    change['new'][field] = new_rec.get(field)
+
+            # Store the updated record and questions to the database
+            db_store_assign(new_rec)
+
+            # Detect differences in custom fields
+            build_custom_fields(new_rec)
+            build_custom_fields(old_rec)
+            for field in old_rec['CF'].keys() | new_rec['CF'].keys():
+                if str(old_rec['CF'].get(field)) != str(new_rec['CF'].get(field)):
+                    change['affectedColumns'].add(field)
+                    change['old'][field] = old_rec['CF'].get(field)
+                    change['new'][field] = new_rec['CF'].get(field)
+
+            # Generate some change metadata fields
+            change['class'] = old_rec.get('classShort',    new_rec.get('classShort'))
+            change['car']   = old_rec.get('vehicleNumber', new_rec.get('vehicleNumber'))
+            change['driver'] = ' '.join((
+                    old_rec.get('firstName', new_rec.get('firstName')),
+                    old_rec.get('lastName', new_rec.get('lastName')))).strip()
+
+            change.update((x, False) for x in 
+                    [ 'printed', 'appliedA', 'appliedB', 'appliedC', 'appliedR' ])
+
+            change['isCarChange'] = False # XXX Is this a potential car change?
+            change['isRelevant']  = False # XXX Is this an "interesting" change?
+
+            if Options.debug:
+                sys.stderr.write('storing new change:\n')
+                pprint.pprint(change, stream=sys.stderr)
+                sys.stderr.write('\n')
+            db_store_change(change, force=Options.force)
 
 
 def do_dump_changes():
@@ -1086,6 +1165,12 @@ def process_args():
     p.add_argument('-t', '--since', type=parse_ts, help='Start time')
     p.set_defaults(_func = do_dump_changes)
     p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id'))
+
+    p = sp.add_parser('update', help='Fetch changes and update database')
+    p.add_argument('-t', '--since', type=parse_ts, help='Start time')
+    p.add_argument('-f', '--force', action='store_true', help='Overwrite existing changes')
+    p.set_defaults(_func = do_update)
+    p.set_defaults(_required = opts_msr_reqd + ('event-id','segment-id','database'))
 
     Options = ap.parse_args()
     if not hasattr(Options, '_func'):
