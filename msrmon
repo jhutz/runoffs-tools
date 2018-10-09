@@ -32,26 +32,27 @@ opts_defaults = { 'server' : 'api.motorsportreg.com' }
 
 # Default configuration
 config_defaults = {
-    'csvFields' : [
-        { 'segment'        : 'Segment Name' },
-        { 'vehicleNumber'  : 'No.' },
-        { 'classShort'     : 'Class' },
-        { 'groupShort'     : 'Group' },
-        { 'lastName'       : 'Last Name' },
-        { 'firstName'      : 'First Name' },
-        { 'memberId'       : 'Member #' },
-        { '_RoR'           : 'Region of Record Abbreviation' },
-        { '_homeTown'      : 'City/State' },
-        { '_MM'            : 'Vehicle Year/Make/Model' },
-        { 'color'          : 'Color' },
-        { 'transponder'    : 'Transponder ID' },
-        { 'sponsor'        : 'Sponsor' },
-        { 'registered'     : 'Registration date' },
-        { 'uniqueId'       : 'Unique ID' },
-        ],
+    'csvFormats' : {},
     'csvEventQuestions' : [],
     'csvVehicleQuestions' : [],
 }
+config_default_csv = [
+    { 'segment'        : 'Segment Name' },
+    { 'vehicleNumber'  : 'No.' },
+    { 'classShort'     : 'Class' },
+    { 'groupShort'     : 'Group' },
+    { 'lastName'       : 'Last Name' },
+    { 'firstName'      : 'First Name' },
+    { 'memberId'       : 'Member #' },
+    { '_RoR'           : 'Region of Record Abbreviation' },
+    { '_homeTown'      : 'City/State' },
+    { '_MM'            : 'Vehicle Year/Make/Model' },
+    { 'color'          : 'Color' },
+    { 'transponder'    : 'Transponder ID' },
+    { 'sponsor'        : 'Sponsor' },
+    { 'registered'     : 'Registration date' },
+    { 'uniqueId'       : 'Unique ID' },
+]
 
 # columns in the database changes table
 change_columns = [ 'uidAssignment', 'ts', 'authorName', 'authorEmail',
@@ -157,6 +158,8 @@ def load_config():
             Config[k] = v
     if 'timezone' in Config:
         Config['timezone'] = tz.gettz(Config['timezone'])
+    if 'default' not in Config['csvFormats']:
+        Config['csvFormats']['default'] = config_default_csv
     for key in config_paths:
         Config[key] = os.path.normpath(os.path.join(
             os.path.dirname(os.path.realpath(Options.config)),
@@ -777,7 +780,11 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
     # Set up columns
     fields = []
     header = {}
-    for field in Config['csvFields']:
+    if not Options.csv_format:
+        Options.csv_format = 'default'
+    if Options.csv_format not in Config['csvFormats']:
+        raise KeyError("No CSV format '%s'" % Options.csv_format)
+    for field in Config['csvFormats'][Options.csv_format]:
         if not isinstance(field, dict):
             k = v = field
         elif len(field) != 1:
@@ -842,7 +849,7 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
     if Options.dump:
         dumpobj(recs)
         return
-    if Options.csv:
+    if Options.csv or Options.csv_format:
         show_assign_csv(recs, att_cache=att_cache, mem_cache=mem_cache, fromdb=fromdb)
         return
 
@@ -901,7 +908,7 @@ def do_assigns():
         recs = [ msr_get_assign(item) for item in Options.items ]
     else:
         recs = msr_get_assign_list(cleanup=not Options.dump)
-        if Options.custom_fields or Options.csv:
+        if Options.custom_fields or Options.csv or Options.csv_format:
             mem_cache = msr_get_member_dict(cleanup=not Options.dump)
             att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
         elif Options.questions or Options.event_questions:
@@ -1042,6 +1049,7 @@ def process_args():
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
     p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
+    p.add_argument('--csv-format', help='CSV file format name')
     p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
@@ -1062,6 +1070,7 @@ def process_args():
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
     p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
+    p.add_argument('--csv-format', help='CSV file format name')
     p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_entries)
