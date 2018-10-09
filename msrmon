@@ -969,7 +969,8 @@ def do_help(ap):
 
 def process_args():
     global Options
-    ap = argparse.ArgumentParser(usage='%(prog)s [options] command [args...]')
+    ap = argparse.ArgumentParser(usage='%(prog)s [options] command [args...]',
+            fromfile_prefix_chars='@')
     sp = ap.add_subparsers(title='subcommands', metavar=None)
     ap._optionals.title = 'Options'
     
