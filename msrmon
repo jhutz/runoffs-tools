@@ -17,6 +17,11 @@ import csv
 import json
 import yaml
 
+# These config options are pathnames
+# They are subject to environment and ~ expansion, and if relative,
+# will be interpreted relative to the location of the config file.
+config_paths = ('database', 'pwfile')
+
 # These command-line options can be set in the config file
 opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
             'org-id', 'event-id', 'segment-id', 'timezone')
@@ -152,6 +157,11 @@ def load_config():
             Config[k] = v
     if 'timezone' in Config:
         Config['timezone'] = tz.gettz(Config['timezone'])
+    for key in config_paths:
+        Config[key] = os.path.normpath(os.path.join(
+            os.path.dirname(os.path.realpath(Options.config)),
+            os.path.expandvars(os.path.expanduser(Config[key]))
+            ))
 
     for key in opts_from_config:
         okey = key.replace('-','_')
