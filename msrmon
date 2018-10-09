@@ -343,7 +343,7 @@ def _msr_load_fake_members():
     global Fake_Members
     if 'Fake_Members' not in globals():
         if Options.debug:
-            sys.stderr.write('Loading fake members from %s\n' % Options.member_data)
+            sys.stderr.write('Loading fake members from %s\n' % Options.member_data.name)
         j = json.load(Options.member_data)
         Fake_Members = collections.OrderedDict(
                 [ (x['id'], x) for x in map(_msr_cleanup, j) ] )
@@ -383,7 +383,7 @@ def _msr_load_fake_attendees():
     global Fake_Attendees
     if 'Fake_Attendees' not in globals():
         if Options.debug:
-            sys.stderr.write('Loading fake attendees from %s\n' % Options.attendee_data)
+            sys.stderr.write('Loading fake attendees from %s\n' % Options.attendee_data.name)
         j = json.load(Options.attendee_data)
         for rec in j: _msr_cleanup(rec)
         Fake_Attendees = collections.OrderedDict(
@@ -427,7 +427,7 @@ def _msr_load_fake_assigns():
     global Fake_Assigns
     if 'Fake_Assigns' not in globals():
         if Options.debug:
-            sys.stderr.write('Loading fake assignments from %s\n' % Options.assign_data)
+            sys.stderr.write('Loading fake assignments from %s\n' % Options.assign_data.name)
         j = json.load(Options.assign_data)
         for rec in j: _msr_cleanup(rec)
         Fake_Assigns = collections.OrderedDict(
@@ -485,7 +485,20 @@ def msr_add_attendee_info(rec, cache=None, att=None):
             att = cache[id]
     rec.update([ (k, att[k]) for k in msr_attendee_only_fields])
 
-def msr_get_changes():
+def msr_get_changes(cleanup=True):
+    if Options.change_data is not None:
+        if not Options.change_data:
+            sys.stderr.write('Out of fake change data\n')
+            return []
+        file = Options.change_data.pop(0)
+        if Options.debug:
+            sys.stderr.write('Loading fake changes from %s\n' % file.name)
+        j = json.load(file)
+        fake_changes = _msr_cleanup(j)
+        if Options.debug:
+            sys.stderr.write('Loaded %d fake changes\n' % len(fake_changes))
+        return fake_changes
+
     params = { 'segments' : Options.segment_id }
     # XXX look up last known change in database
     if Options.since is not None:
@@ -496,6 +509,8 @@ def msr_get_changes():
         for e in j['errors']:
             sys.stderr.write(e)
         sys.exit(1)
+    if cleanup:
+        return map(_msr_cleanup, j['data'])
     return j['data']
 
 
@@ -862,7 +877,7 @@ def do_update():
 
 
 def do_dump_changes():
-    dumpobj(msr_get_changes())
+    dumpobj(msr_get_changes(cleanup=False))
 
 def do_help(ap):
     if (Options.subcommand is not None):
@@ -898,6 +913,8 @@ def process_args():
             help='Prefetched assignment data file (for debug)')
     ap.add_argument('--member-data', type=argparse.FileType(),
             help='Prefetched member data file (for debug)')
+    ap.add_argument('--change-data', action='append', type=argparse.FileType(),
+            help='Prefetched change data file (for debug)')
 
     p = sp.add_parser('help', help='Show help message or subcommand help')
     p.add_argument('subcommand', nargs='?', help='Subcommand to show help for')
