@@ -172,7 +172,7 @@ def load_config():
             setattr(Options, key, opts_defaults[key])
     if Options.password is None and Options.pwfile is not None:
         with open(Options.pwfile) as pwfile:
-            Options.password = pwfile.readline()
+            Options.password = pwfile.readline().strip()
 
 def is_uid(s):
     if not isinstance(s, str): return False
