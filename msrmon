@@ -333,11 +333,11 @@ def msr_get(query, params={}):
     r.raise_for_status()
     return r.json()
 
-def _msr_cleanup(rec):
-    return { k: v.strip() if isinstance(v, str)
-            else [ _msr_cleanup(x) for x in v ] if isinstance(v, list)
-            else v
-            for k,v in rec.items() }
+def _msr_cleanup(obj):
+    if isinstance(obj, list): return [ _msr_cleanup(x) for x in obj ]
+    if isinstance(obj, dict): return { k : _msr_cleanup(v) for k,v in obj.items() }
+    if isinstance(obj, str): return obj.strip()
+    return obj
 
 def _msr_load_fake_members():
     global Fake_Members
