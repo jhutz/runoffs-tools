@@ -48,6 +48,11 @@ config_defaults = {
     'csvVehicleQuestions' : [],
 }
 
+# columns in the database changes table
+change_columns = [ 'uidAssignment', 'ts', 'authorName', 'authorEmail',
+        'class', 'car', 'driver',
+        'isCarChange', 'isRelevant', 'printed',
+        'appliedA', 'appliedB', 'appliedC', 'appliedR' ]
 
 # Required options for anything that connects to MSR
 opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
@@ -230,8 +235,8 @@ create table if not exists answers (
 create table if not exists changes (
   xid           integer primary key,
   uid           text unique not null,
-  aid           integer not null references assignments,
-  timestamp     timestamp,
+  uidAssignment integer not null references assignments,
+  ts            timestamp,
   authorName    text,
   authorEmail   text,
   class         text,
@@ -315,6 +320,71 @@ def db_fetch_assign(item):
 def db_fetch_all_assigns():
     return [ db_fetch_assign(item[0])
             for item in DB.execute('select uid from assignments') ]
+
+def db_store_change(change, force=False):
+    c = DB.execute('select xid from changes where uid=?', (change['uid'],))
+    r = c.fetchall()
+    if r:
+        xid = change['xid'] = r[0]['xid']
+        if not force:
+            return False
+        DB.execute('delete from change_data where xid=?', (xid,))
+        DB.execute('update changes set (%s) = (%s) where xid = :xid'
+                % ( ', '.join(change_columns),
+                    ', '.join([ ':'+x for x in change_columns])),
+                change)
+    else:
+        c = DB.execute('insert into changes (uid, %s) values (:uid, %s)'
+                % ( ', '.join(change_columns),
+                    ', '.join([ ':'+x for x in change_columns])),
+                change)
+        xid = change['xid'] = c.lastrowid
+    if Options.debug:
+        for field in sorted(change['affectedColumns']):
+            args = (xid, field, change['old'].get(field), change['new'].get(field))
+            sys.stderr.write('>> %4d %-25s %-25.25s %.25s\n' % args)
+            DB.execute('insert into change_data (xid, field, old_value, new_value) \
+                    values (?,?,?,?)',
+                    (xid, field, change['old'].get(field), change['new'].get(field)))
+    else:
+        DB.executemany('insert into change_data (xid, field, old_value, new_value) \
+                values (?,?,?,?)',
+                [ (xid, field, change['old'].get(field), change['new'].get(field))
+                    for field in change['affectedColumns'] ])
+    return True
+
+def db_update_change(xid, data):
+    if not data: return
+    DB.execute('update changes set (%s) = (%s) where xid=:xid'
+            % ( ','.join(data.keys()),
+                ','.join(':' + x for x in data.keys())),
+            dict(data, xid=xid))
+
+def db_fetch_change_id(uid):
+    c = DB.execute('select xid from changes where uid=?', (uid,))
+    r = c.fetchall()
+    if r:
+        return r[0]['xid']
+    else:
+        return None
+
+def db_fetch_change(uid):
+    c = DB.execute('select xid, uid, %s from changes where uid=?'
+            % ', '.join(change_columns), (uid,))
+    r = c.fetchall()
+    if not r: return None
+    change = dict(r[0])
+    c = DB.execute('select field, old_value, new_value from change_data where xid=?',
+            (change['xid'],))
+    fields = c.fetchall()
+    change['affectedColumns'] = [ f['field'] for f in fields ]
+    change['old'] = { f['field'] : f['old_value'] for f in fields }
+    change['new'] = { f['field'] : f['new_value'] for f in fields }
+    return change
+
+def db_fetch_all_changes():
+    return [ db_fetch_change(item[0])
+            for item in DB.execute('select uid from changes') ]
 
 def msr_session():
     global MSR
