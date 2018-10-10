@@ -1042,7 +1042,7 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
-    p.add_argument('-f', '--filter', action='append', help='Filter field=pattern',
+    p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
     p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
@@ -1063,7 +1063,7 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Assignment IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
-    p.add_argument('-f', '--filter', action='append', help='Filter field=pattern',
+    p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
     p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
