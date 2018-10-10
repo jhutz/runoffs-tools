@@ -621,7 +621,9 @@ def eval_custom_field(rec, Q, name, defn):
     elif isinstance(defn, str):
         # Format string
         if Options.debug: sys.stderr.write('  format(%s)\n' % defn)
-        value = defn.format(**rec)
+        srec = collections.defaultdict(str,
+                { k : v if v is not None else '' for k,v in rec.items() })
+        value = defn.format(**srec).strip()
     else:
         # Other scalar values are used as-is
         if Options.debug: sys.stderr.write('  literal(%s)\n' % str(defn))
@@ -646,14 +648,18 @@ def eval_custom_field(rec, Q, name, defn):
             # Pattern splitting
             if Options.debug:
                 sys.stderr.write('  split: %s\n' % op)
-            m = re.search(op, value)
-            if m:
-                newf = m.groupdict()
-                if Options.debug:
-                    sys.stderr.write('  matched %d fields\n' % len(newf))
-                    pprint.pprint(newf, stream=sys.stderr)
-                rec.update(newf)
-                rec['CF'].update(newf)
+            pat = re.compile(op)
+            newf = { k : None for k in pat.groupindex.keys() }
+            if value is not None:
+                m = pat.search(value)
+                if m:
+                    newf = m.groupdict()
+                    if Options.debug:
+                        sys.stderr.write('  matched %d fields\n' % len(newf))
+            if Options.debug:
+                pprint.pprint(newf, stream=sys.stderr)
+            rec.update(newf)
+            rec['CF'].update(newf)
     if Options.debug: sys.stderr.write('\n')
     return value
 
