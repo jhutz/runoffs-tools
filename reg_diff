@@ -6,10 +6,7 @@ use Text::CSV;
 use strict;
 
 our @KeyCols = ('Class', 'Member ID');
-our %Ignore = map(($_ => 1), (
-    'Member End Date', 'Registered', 'Last Updated',
-    'Postal Code', 'Logbook', 'Track Front Rear', 'Wheelbase',
-  ));
+our %Ignore = map(($_ => 1), ('Reg Date'));
 
 sub usage {
   print STDERR @_, "\n" if @_;

@@ -11,17 +11,17 @@ use vars qw(@Cols %Cols %QualGroup %QualSub %RaceGroup %Keys);
 use vars qw($format $carno $class $name);
 
 # Qualifying Groups (except single classes)
-@QGroups = qw(GT1/T1/GT3 FE/FM/FC FA/P2 EP/GTL FF/F5
-  GT2/AS STU/T2 T3/B-Spec P1/FB);
+@QGroups = qw(T3/STU P1/P2 EP/GTL FF/F5 FP/HP AS/T1 FE/FE2/FM T4/B-Spec FA/FB);
 
 # Race Groups (except single classes and qual groups racing all together)
-@RGroups = qw(FC/FM);
+@RGroups = qw(FE/FE2);
 
 %YearClasses   = map(($_ => 1), qw(EP FP HP SM T1 T2 T3 T4));
 %EngineClasses = map(($_ => 1), qw(F5 FA FB FF P1 P2));
 
 %FixedMM = (
   FE   => [ 'Mazda', 'FE' ],
+  FE2  => [ 'Mazda', 'FE2' ],
   FM   => [ 'Star',  'Formula Mazda' ],
   SM   => [ 'Mazda', 'Miata' ],
   SRF  => [ 'SCCA',  'Spec Racer Ford' ],
@@ -36,15 +36,15 @@ use vars qw($format $carno $class $name);
   email    => 'Email',
   city     => 'City',
   state    => 'State',
-  member   => 'Member ID',
+  member   => 'Member #',
   class    => 'Class',
-  car      => 'Vehicle #',
-  year     => 'Vehicle Year',
+  car      => 'Car #',
+  year     => 'Year',
   txno     => 'Transponder',
-  make     => 'Official Make',
-  model    => 'Official Model',
-  engine   => 'Engine Make',
-  color    => 'Official Color',
+  make     => 'Make',
+  model    => 'Model',
+  engine   => 'Engine',
+  color    => 'Color',
   sponsor  => 'Sponsor',
 );
 
@@ -143,7 +143,7 @@ sub v_namecaps ($$;$) {
       # Special cases
       $problems++ unless $word eq $Words{lc($word)};
       $newvalue .= $Words{lc($word)};
-    } elsif ($word !~ /[a-z]/ || $word =~ /^(De|Di|La|Le|Lo|Mc|Mac)?[^a-z][^A-Z]*$/) {
+    } elsif ($word !~ /[a-z]/ || $word =~ /^(de|De|Di|La|Le|Lo|Mc|Mac)?[^a-z][^A-Z]*$/) {
       # well-formed word
       $newvalue .= $word;
     } elsif (grep($_ eq $word, qw(de del du in the von)) && @words
