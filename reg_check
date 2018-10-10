@@ -336,7 +336,7 @@ while (<>) {
   }
 
   # Collect counts for duplicate checks
-  my $mcx = join(' ', map("$_:$fields[$Cols{$_}]", qw(member car txno)));
+  my $mcx = join(' ', map("$_:$fields[$Cols{$_}]", qw(member class car txno)));
   foreach my $f (qw(member car txno)) {
     next unless $fields[$Cols{$f}] ne '';
     foreach ($class, $qgroup, $qsub, $rgroup) {
