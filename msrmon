@@ -56,7 +56,7 @@ config_default_csv = [
 
 # columns in the database changes table
 change_columns = [ 'uidAssignment', 'ts', 'authorName', 'authorEmail',
-        'class', 'car', 'driver',
+        'action', 'class', 'car', 'driver',
         'isCarChange', 'isRelevant', 'printed',
         'appliedA', 'appliedB', 'appliedC', 'appliedR' ]
 
@@ -271,6 +271,7 @@ create table if not exists changes (
   uid           text unique not null,
   uidAssignment integer not null references assignments,
   ts            timestamp,
+  action        text,
   authorName    text,
   authorEmail   text,
   class         text,
@@ -995,6 +996,29 @@ def do_update():
         # So, throw it away and recompute it from the old/new keys
         change['affectedColumns'] = set(change['old'].keys() | change['new'].keys())
 
+        # determine what kind of change this is
+        if (change['new'].get('attendeeStatus') not in (None, '', 'Cancelled')
+                and 'attendeeStatus' not in change['old']):
+            # This is a new assignment (possibly a new attendee) that didn't exist before
+            change['action'] = 'NEW'
+        elif (change['new'].get('attendeeStatus') not in (None, '', 'Cancelled')
+            and change['old'].get('attendeeStatus') == 'Cancelled'):
+            # This is reinstatement of a previously-cancelled attendee
+            # Note that this can only happen if the attendee had cancelled entirely.
+            # If a single assignment is removed, it cannot be reinstated
+            # (but a new assignment can be created for the same class)
+            change['action'] = 'REST'
+        elif (change['new'].get('attendeeStatus') in (None, '', 'Cancelled') and
+            change['old'].get('attendeeStatus') not in (None, '', 'Cancelled')):
+            # An assignment has been deleted, or the attendee cancelled entirely.
+            change['action'] = 'DROP'
+        else:
+            # Anything else is a modification to an existing assignment
+            change['action'] = 'UPD'
+        if 'attendeeStatus' not in change['new']:
+            # Fake up a status for deleted assignments.
+            change['new']['attendeeStatus'] = 'DELETED';
+
         # Prefetch some related data from MSR
         asn = msr_get_assign(change['uidAssignment'])
         att = msr_get_attendee(change['attendeeId'])
@@ -1004,6 +1028,16 @@ def do_update():
             # Fetch assignment from database
             old_rec = db_fetch_assign(change['uidAssignment'])
             new_rec = deepcopy(old_rec)
+
+            # If this is a "new" entry but there was an existing DELETED
+            # assignment for the same class+memberId, then this is really
+            # a reinstatement (REST)
+            if change['action'] == 'NEW' and db_find_assign( {
+                'class'    : change['new']['vchclass'],
+                'memberId' : change['new']['memberId'],
+                'status'   : 'DELETED'
+                }):
+                change['action'] = 'REST'
 
             # If this is a new entry, the assignment might not be in the database.
             # If that is the case, we need to pre-populate certain key fields
