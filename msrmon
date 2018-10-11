@@ -351,6 +351,15 @@ def db_fetch_assign(item):
     rec['vehicle_questions'] = db_fetch_answers(item, 'V')
     return rec
 
+def db_find_assign(fields):
+    c = DB.execute("select uid from assignments "
+            + " ".join("join assign_data `a_{0}` using (aid)".format(x)
+                for x in fields.keys())
+            + " where "
+            + " and ".join("`a_{0}`.field = '{0}' and `a_{0}`.value = :{0}".format(x)
+                for x in fields.keys()), fields)
+    return [ row['aid'] for row in c ]
+
 def db_fetch_all_assigns():
     return [ db_fetch_assign(item[0])
             for item in DB.execute('select uid from assignments') ]
