@@ -77,7 +77,8 @@ msr_attendee_only_fields2 = [ 'email', 'registered' ]
 # The RHS is the name used in the assignment record, or None to ignore
 msr_change_field_names = {
         ''                              : None,
-        'classModifierShortDescription' : 'classModifier',
+        'classModifierShortdescription' : 'classModifier',
+        'vehicleStatus'                 : 'vehiclestatus',
         'attendeeStatus'                : 'status',
         'vchclass'                      : 'classShort',
         'dateRegistered'                : 'registered',
