@@ -1103,6 +1103,55 @@ def do_update():
             db_store_change(change, force=Options.force)
 
 
+def show_change_results(recs):
+    if Options.sort:
+        recs = sorted(recs, key=lambda r:
+                (r['class'], int(r['car']), r['car'].startswith('0'), r['xid']))
+    else:
+        recs = sorted(recs, key=lambda r: r['xid'])
+    if Options.dump:
+        dumpobj(recs)
+        return
+
+    fmt = '{xid:>4} {ts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {_count:>3} {class:6.6} {car!s:>3} {driver:25}'
+
+    col_headers = {
+            'xid'       : 'Chg#',
+            'ts'        : 'Date/Time',
+            '_cc'       : 'CC?',
+            '_done'     : 'Done',
+            'action'    : 'What',
+            '_count'    : '#F',
+            'class'     : 'Class',
+            'car'       : 'No.',
+            'driver'    : 'Driver',
+            }
+    print_header(fmt, col_headers)
+
+    for data in recs:
+        data['_cc'] = 'Yes' if data['isCarChange'] else 'No'
+        data['_done'] = (
+                'A' if data['appliedA'] else '-' +
+                'B' if data['appliedB'] else '-' +
+                'C' if data['appliedC'] else '-' +
+                'R' if data['appliedR'] else '-' )
+        data['_count'] = len(data['affectedColumns'])
+        if (Options.filter and not
+                functools.reduce(lambda x,f: x and f[1].search(data[f[0]]),
+                    Options.filter, True)):
+            continue
+        print(fmt.format(**data).rstrip())
+
+def do_changes():
+    db_open()
+    with DB:
+        if Options.items:
+            recs = [ db_fetch_change(item) for item in Options.items ]
+        else:
+            recs = db_fetch_all_changes()
+    show_change_results(recs)
+
+
 def do_dump_changes():
     dumpobj(msr_get_changes(cleanup=False))
 
@@ -1216,6 +1265,16 @@ def process_args():
     p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_entries)
+    p.set_defaults(_required = ('database',))
+
+    p = sp.add_parser('changes', help='List changes')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to dump')
+    p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
+    p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
+            type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
+    p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
+    p.set_defaults(_func = do_changes)
     p.set_defaults(_required = ('database',))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
