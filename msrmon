@@ -1114,23 +1114,34 @@ def show_change_results(recs):
         dumpobj(recs)
         return
 
-    fmt = '{xid:>4} {ts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {_count:>3} {class:6.6} {car!s:>3} {driver:25}'
+    if Options.long:
+        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_rel:3} {_cc:3} {_prt:3} {_done:4} {action:4} {_count:>3} {class:6.6} {car!s:>3} {driver:25} {authorName:25} {uid:36}'
+    else:
+        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {class:6.6} {car!s:>3} {driver:25}'
+    nfmt = '     {field:20} {new!s:40}'
+    ufmt = '     {field:20} {old!s:40} {new!s:40}'
 
     col_headers = {
+            'uid'       : 'Change UID',
             'xid'       : 'Chg#',
             'ts'        : 'Date/Time',
+            '_rel'      : 'Rel',
             '_cc'       : 'CC?',
+            '_prt'      : 'Prt', 
             '_done'     : 'Done',
             'action'    : 'What',
             '_count'    : '#F',
             'class'     : 'Class',
             'car'       : 'No.',
             'driver'    : 'Driver',
+            'authorName': 'Author',
             }
     print_header(fmt, col_headers)
 
     for data in recs:
-        data['_cc'] = 'Yes' if data['isCarChange'] else 'No'
+        data['_rel'] = 'Yes' if data['isRelevant'] else 'No'
+        data['_cc']  = 'Yes' if data['isCarChange'] else 'No'
+        data['_prt'] = 'Yes' if data['printed'] else 'No'
         data['_done'] = (
                 'A' if data['appliedA'] else '-' +
                 'B' if data['appliedB'] else '-' +
@@ -1142,6 +1153,17 @@ def show_change_results(recs):
                     Options.filter, True)):
             continue
         print(fmt.format(**data).rstrip())
+        if Options.verbose and data['action'] == 'UPD':
+            for field in sorted(data['affectedColumns']):
+                print(ufmt.format(field=field,
+                    old=data['old'][field], new=data['new'][field]).rstrip())
+            print()
+        elif Options.verbose and data['action'] != 'DROP':
+            for field in sorted(data['affectedColumns']):
+                print(nfmt.format(field=field,
+                    old=data['old'][field], new=data['new'][field]).rstrip())
+            print()
+
 
 def do_changes():
     db_open()
@@ -1173,8 +1195,6 @@ def process_args():
     
     ap.add_argument('-d', '--debug', action='store_true',
             help='Enable debugging')
-    ap.add_argument('-v', '--verbose', action='store_true',
-            help='Enable verbose output')
     ap.add_argument('-C', '--config',     help='Config file')
     ap.add_argument('-D', '--database',   help='Database file')
     ap.add_argument('--server', help='MotorsportReg API server')
@@ -1207,6 +1227,8 @@ def process_args():
     p.set_defaults(_required = opts_msr_reqd)
 
     p = sp.add_parser('segments', help='List event segments')
+    p.add_argument('-v', '--verbose', action='store_true',
+            help='Show detailed group info')
     p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
     p.set_defaults(_func = do_segments)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
@@ -1274,6 +1296,8 @@ def process_args():
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
     p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
+    p.add_argument('-v', '--verbose', action='store_true',
+            help='Show changed fields')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_changes)
     p.set_defaults(_required = ('database',))
