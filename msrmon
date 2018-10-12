@@ -229,8 +229,16 @@ def print_header(fmt, cols):
         else:
             return '='
     if Options.dump: return
+
+    # KLUDGE: Standard format strings cannot start with %X, unless X is a valid
+    # fill control mode. So, assume any such format is actually intended for
+    # strftime, and actually _call_ strftime on a sample value to get its width.
+    fmt = re.sub(r'{([^:]*):(%[^<=>^}][^}]*)}',
+            lambda m : '{%s:%d}' % (m.group(1),
+                len(datetime.now().strftime(m.group(2)))), fmt)
+    fmt = re.sub(r'{([^:]*):[^}\d]*0?(\d+)[^}]*}', r'{\1:<\2}', fmt)
     print(fmt.format(**cols).rstrip())
-    print(re.sub(r':[^}\d]*(\d+)[^}]*}', r':=<\1}', fmt).format(**dash(cols)))
+    print(re.sub(r'{([^:]*):<(\d+)}', r'{\1:=<\2}', fmt).format(**dash(cols)))
 
 
 def db_open():
