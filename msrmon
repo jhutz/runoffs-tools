@@ -82,7 +82,7 @@ msr_change_field_names = {
         'attendeeStatus'                : 'status',
         'vchclass'                      : 'classShort',
         'dateRegistered'                : 'registered',
-        #'uidvehicle'                    : None, #XXX
+        'uidvehicle'                    : None, # handled specially
         'uidmember'                     : None, #XXX
         'entrantEmail'                  : None,
         'entrantFirstName'              : None,
@@ -993,12 +993,17 @@ def do_entries():
 
 def do_update():
     db_open()
-    for change in msr_get_changes():
+    for change in sorted(msr_get_changes(), key=lambda x : x['ts']):
+        if Options.debug:
+            sys.stderr.write('processing change %s\n' % change['uid'])
+            pprint.pprint(change, stream=sys.stderr)
         # Generate some change metadata fields
         cb = change.get('changedBy',{})
         change['authorName'] = ' '.join((cb.get('firstName'), cb.get('lastName'))).strip()
         change['authorEmail'] = cb.get('email')
         change['ts'] = parse_ts(change['ts'])
+        change.update((x, False) for x in 
+                [ 'printed', 'appliedA', 'appliedB', 'appliedC', 'appliedR' ])
 
         # affectedColumns is not very useful; it misses columns which were deleted,
         # ignores some columns entirely, and is inconsistent about whether it uses
@@ -1025,7 +1030,7 @@ def do_update():
         else:
             # Anything else is a modification to an existing assignment
             change['action'] = 'UPD'
-        if 'attendeeStatus' not in change['new']:
+        if 'attendeeStatus' in change['old'] and 'attendeeStatus' not in change['new']:
             # Fake up a status for deleted assignments.
             change['new']['attendeeStatus'] = 'DELETED';
 
@@ -1035,69 +1040,151 @@ def do_update():
         mem = msr_get_member(att['memberuri'].replace('/members/',''))
 
         with DB:
-            # Fetch assignment from database
-            old_rec = db_fetch_assign(change['uidAssignment'])
-            new_rec = deepcopy(old_rec)
+            if change['action'] == 'NEW':
+                ### New or reinstatement
+                # Generate metadata for this change
+                change['isRelevant']  = True
+                change['isCarChange'] = False
+                change['class']       = change['new'].get('vchclass')
+                change['car']         = change['new'].get('vehicleNumber')
+                change['driver']      = ' '.join((
+                            change['new'].get('firstName', ''),
+                            change['new'].get('lastName', '')
+                            )).strip()
 
-            # If this is a "new" entry but there was an existing DELETED
-            # assignment for the same class+memberId, then this is really
-            # a reinstatement (REST)
-            if change['action'] == 'NEW' and db_find_assign( {
-                'class'    : change['new']['vchclass'],
-                'memberId' : change['new']['memberId'],
-                'status'   : 'DELETED'
-                }):
-                change['action'] = 'REST'
+                # If there was an existing DELETED assignment for the same
+                # class+memberId, then this is really a reinstatement
+                if db_find_assign( {
+                    'class'    : change['afterChange']['classShort'],
+                    'memberId' : change['afterChange']['memberId'],
+                    'status'   : 'DELETED'
+                    }):
+                    change['action'] = 'REST'
 
-            # If this is a new entry, the assignment might not be in the database.
-            # If that is the case, we need to pre-populate certain key fields
-            # that are not included in the change record.
-            if asn and 'id' not in new_rec: new_rec['id'] = asn['id']
-            if 'attendeeId' not in new_rec: new_rec['attendeeId'] = att['id']
-            if 'memberuri'  not in new_rec: new_rec['memberuri'] = mem['uri']
+                # Add the new assignment to the database
+                new_rec = dict([
+                        (msr_change_field_names.get(field, field), change['new'].get(field))
+                        for field in change['affectedColumns']
+                        if msr_change_field_names.get(field, field) is not None
+                        ],
+                    id                = asn['id'],
+                    attendeeId        = att['id'],
+                    memberuri         = mem['uri'],
+                    vehicle_questions = asn['vehicle_questions'],
+                    vehicleuri = mem['uri'] + '/vehicles/' + change['new']['uidvehicle']
+                    )
+                msr_add_member_info(new_rec, mem=mem)
+                msr_add_attendee_info(new_rec, att=att)
+                db_store_assign(new_rec)
 
-            # Create a representation of the assignment post-change
-            msr_add_member_info(new_rec, mem=mem)
-            msr_add_attendee_info(new_rec, att=att)
-            new_rec['vehicle_questions'] = asn['vehicle_questions'] if asn else {}
-            for field in change['affectedColumns']:
-                afield = msr_change_field_names.get(field, field)
-                if afield is not None:
-                    new_rec[afield] = change['new'].get(field)
+                # Add member and attendee fields to the change
+                change['affectedColumns'].update(msr_member_only_fields)
+                change['affectedColumns'].update(msr_attendee_only_fields)
+                change['old'].update((field, None)
+                        for field in msr_member_only_fields + msr_attendee_only_fields)
+                change['new'].update((field, new_rec[field])
+                        for field in msr_member_only_fields + msr_attendee_only_fields)
 
-            # Detect differences in member, attendee fields
-            # XXX special handling for uidvehicle => vehicleUri ?
-            for field in msr_member_only_fields + msr_attendee_only_fields:
-                if str(old_rec.get(field)) != str(new_rec.get(field)):
-                    change['affectedColumns'].add(field)
-                    change['old'][field] = old_rec.get(field)
-                    change['new'][field] = new_rec.get(field)
+                # Build custom fields and add them to the change
+                build_custom_fields(new_rec)
+                change['affectedColumns'].update(new_rec['CF'].keys())
+                change['old'].update((field, None) for field in new_rec['CF'].keys())
+                change['new'].update(new_rec['CF'])
 
-            # Store the updated record and questions to the database
-            db_store_assign(new_rec)
+            elif change['action'] == 'UPD' or change['action'] == 'REST':
+                ### Update to an existing assignment
+                old_rec = db_fetch_assign(change['uidAssignment'])
+                if 'id' not in old_rec:
+                    sys.stderr.write('WARNING: ignoring change %s\n' % change['uid'])
+                    sys.stderr.write('on nonexistent assignment %s\n' % change['uidAssignment'])
+                    if Options.debug:
+                        pprint.pprint(change, stream=sys.stderr)
+                        sys.stderr.write('\n')
+                    continue
 
-            # Detect differences in custom fields
-            build_custom_fields(new_rec)
-            build_custom_fields(old_rec)
-            for field in old_rec['CF'].keys() | new_rec['CF'].keys():
-                if str(old_rec['CF'].get(field)) != str(new_rec['CF'].get(field)):
-                    change['affectedColumns'].add(field)
-                    change['old'][field] = old_rec['CF'].get(field)
-                    change['new'][field] = new_rec['CF'].get(field)
+                # Generate metadata for this change
+                change['isRelevant']  = True #XXX
+                change['isCarChange'] = 'uidvehicle' in change['affectedColumns']
+                change['class']       = old_rec.get('classShort',
+                        change['old'].get('vchclass',
+                            change['new'].get('vchclass')))
+                change['car']         = old_rec.get('vehicleNumber',
+                        change['old'].get('vehicleNumber',
+                            change['new'].get('vehicleNumber')))
 
-            # Generate some change metadata fields
-            change['class'] = old_rec.get('classShort',    new_rec.get('classShort'))
-            change['car']   = old_rec.get('vehicleNumber', new_rec.get('vehicleNumber'))
-            change['driver'] = ' '.join((
-                    old_rec.get('firstName', new_rec.get('firstName')),
-                    old_rec.get('lastName', new_rec.get('lastName')))).strip()
+                if 'firstName' in old_rec or 'lastName' in old_rec:
+                    change['driver'] = ' '.join((
+                        old_rec.get('firstName', ''),
+                        old_rec.get('lastName', '')
+                        )).strip()
+                else:
+                    change['driver'] = ' '.join((
+                        change['old'].get('firstName', change['new'].get('firstName', '')),
+                        change['old'].get('lastName', change['new'].get('lastName', ''))
+                        )).strip()
 
-            change.update((x, False) for x in 
-                    [ 'printed', 'appliedA', 'appliedB', 'appliedC', 'appliedR' ])
+                # Update the existing assignment in the database
+                new_rec = deepcopy(old_rec)
+                msr_add_member_info(new_rec, mem=mem)
+                msr_add_attendee_info(new_rec, att=att)
+                new_rec['vehicle_questions'] = asn['vehicle_questions'] if asn else {}
+                for field in change['affectedColumns']:
+                    if field == 'uidvehicle':
+                        new_rec['vehicleuri'] = (att['memberuri']
+                                + '/vehicles/' + change['new']['uidvehicle'])
+                        continue
+                    afield = msr_change_field_names.get(field, field)
+                    if afield is not None:
+                        new_rec[afield] = change['new'].get(field)
+                db_store_assign(new_rec)
 
-            change['isCarChange'] = False # XXX Is this a potential car change?
-            change['isRelevant']  = False # XXX Is this an "interesting" change?
+                # Detect differences in member and attendee fields
+                for field in msr_member_only_fields + msr_attendee_only_fields:
+                    if str(old_rec.get(field)) != str(new_rec.get(field)):
+                        change['affectedColumns'].add(field)
+                        change['old'][field] = old_rec.get(field)
+                        change['new'][field] = new_rec.get(field)
 
+                # Detect differences in custom fields
+                build_custom_fields(new_rec)
+                build_custom_fields(old_rec)
+                for field in old_rec['CF'].keys() | new_rec['CF'].keys():
+                    if str(old_rec['CF'].get(field)) != str(new_rec['CF'].get(field)):
+                        change['affectedColumns'].add(field)
+                        change['old'][field] = old_rec['CF'].get(field)
+                        change['new'][field] = new_rec['CF'].get(field)
+
+            elif change['action'] == 'DROP':
+                ### Dropped or cancelled assignment
+                old_rec = db_fetch_assign(change['uidAssignment'])
+
+                # Generate metadata for this change
+                change['isRelevant']  = True
+                change['isCarChange'] = False
+                change['class']       = old_rec.get('classShort',
+                        change['old'].get('vchclass'))
+                change['car']         = old_rec.get('vehicleNumber',
+                        change['old'].get('vehicleNumber'))
+                if 'firstName' in old_rec or 'lastName' in old_rec:
+                    change['driver'] = ' '.join((
+                        old_rec.get('firstName', ''),
+                        old_rec.get('lastName', '')
+                        )).strip()
+                else:
+                    change['driver'] = ' '.join((
+                        change['old'].get('firstName', ''),
+                        change['old'].get('lastName', '')
+                        )).strip()
+
+                # Update the existing assignment in the database
+                old_rec['status'] = change['new']['attendeeStatus']
+                db_store_assign(old_rec)
+
+            else:
+                sys.stderr.write('WARNING: ignoring change %s %s\n'
+                        % (change['action'], change['uid']))
+
+            # Add this change to the database
             if Options.debug:
                 sys.stderr.write('storing new change:\n')
                 pprint.pprint(change, stream=sys.stderr)
