@@ -20,12 +20,11 @@ use vars qw($format $carno $class $name);
 %EngineClasses = map(($_ => 1), qw(F5 FA FB FF P1 P2));
 
 %FixedMM = (
-  FE   => [ 'Mazda', 'FE' ],
-  FE2  => [ 'Mazda', 'FE2' ],
+  FE   => [ 'SCCA', 'Mazda FE' ],
+  FE2  => [ 'SCCA', 'Mazda FE2' ],
   FM   => [ 'Star',  'Formula Mazda' ],
   SM   => [ 'Mazda', 'Miata' ],
-  SRF  => [ 'SCCA',  'Spec Racer Ford' ],
-  SRF3 => [ 'SCCA',  'Spec Racer Ford Gen 3' ],
+  SRF3 => [ 'SCCA',  'Spec Racer Ford 3' ],
 );
 
 ## Columns we have special interest in
