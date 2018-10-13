@@ -438,9 +438,13 @@ def db_fetch_change_id(uid):
     else:
         return None
 
-def db_fetch_change(uid):
-    c = DB.execute('select xid, uid, %s from changes where uid=?'
-            % ', '.join(change_columns), (uid,))
+def db_fetch_change(id):
+    if re.match(r'^\d+$', id):
+        c = DB.execute('select xid, uid, %s from changes where xid=?'
+                % ', '.join(change_columns), (id,))
+    else:
+        c = DB.execute('select xid, uid, %s from changes where uid=?'
+                % ', '.join(change_columns), (id,))
     r = c.fetchall()
     if not r: return None
     change = dict(r[0])
