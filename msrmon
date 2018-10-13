@@ -896,7 +896,8 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
 def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
     if Options.sort:
         recs = sorted(recs, key=lambda r:
-                (r['classShort'], int(r['vehicleNumber']),
+                (r['classShort'],
+                    int(r['vehicleNumber']) if re.match('^\d+$', r['vehicleNumber']) else 0,
                     r['vehicleNumber'].startswith('0')))
     if Options.dump:
         dumpobj(recs)
