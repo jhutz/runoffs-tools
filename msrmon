@@ -213,6 +213,23 @@ def parse_ts(timestr):
                 default=datetime.now(timezone.utc).replace(
                     hour=0, minute=0, second=0, microsecond=0))
 
+def convert_timestamp(val):
+    datepart, timepart = val.split(b" ")
+    year, month, day = map(int, datepart.split(b"-"))
+    timepart, tzpart = timepart.split(b"+")
+    timepart_full = timepart.split(b".")
+    hours, minutes, seconds = map(int, timepart_full[0].split(b":"))
+    if len(timepart_full) == 2:
+        microseconds = int('{:0<6.6}'.format(timepart_full[1].decode()))
+    else:
+        microseconds = 0
+    #XXX should handle tzpart, but it's always UTC anyway
+
+    val = datetime(year, month, day, hours, minutes, seconds, microseconds)
+    return val
+
+sqlite3.register_converter("timestamp", convert_timestamp)
+
 def format_ts(ts):
     if Options.raw_dates:
         return ts.strftime('%m/%d/%Y %H:%M:%S')
