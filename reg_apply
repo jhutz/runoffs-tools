@@ -5,7 +5,7 @@ use IO::File;
 use Text::CSV;
 use strict;
 
-our @KeyCols = ('Class', 'Member ID');
+our @KeyCols = ('Class', 'Member #');
 sub usage {
   print STDERR @_, "\n" if @_;
   print <<"EOF";

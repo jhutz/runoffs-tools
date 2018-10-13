@@ -5,7 +5,7 @@ use IO::File;
 use Text::CSV;
 use strict;
 
-our @KeyCols = ('Class', 'Member ID');
+our @KeyCols = ('Class', 'Member #');
 our %Ignore = map(($_ => 1), ('Reg Date'));
 
 sub usage {
