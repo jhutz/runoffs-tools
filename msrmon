@@ -56,7 +56,7 @@ config_default_csv = [
 
 # These fields are always irrelevant
 always_irrelevant = [
-    'id', 'lastUpdate', 'data',
+    'id', 'lastUpdate', 'registered', 'data',
     'attendeeId', 'classId', 'classModifierId', 'groupId',
     'instructorprofileuri', 'instructoruri', 'memberuri',
     'profileuri', 'segmenturi', 'vehicleuri',
@@ -333,6 +333,14 @@ create table if not exists change_data (
   new_value     text,
   primary key (xid, field)
 );
+
+create table if not exists change_answers (
+  xid           integer not null references changes,
+  qid           integer not null references questions,
+  old_answer    text,
+  new_answer    text,
+  primary key (xid,qid)
+);
 """)
 
 QID_Cache = {}
@@ -405,6 +413,13 @@ def db_fetch_all_assigns():
     return [ db_fetch_assign(item[0])
             for item in DB.execute('select uid from assignments') ]
 
+def db_store_change_answers(xid, kind, info):
+    db_cache_qids(kind, info)
+    DB.executemany('insert into change_answers (xid, qid, old_answer, new_answer) \
+            values (?,?,?,?)',
+            [ (xid, QID_Cache[x['id']], x['old_answer'], x['new_answer'])
+                for x in info ])
+
 def db_store_change(change, force=False):
     c = DB.execute('select xid from changes where uid=?', (change['uid'],))
     r = c.fetchall()
@@ -435,6 +450,8 @@ def db_store_change(change, force=False):
                 values (?,?,?,?)',
                 [ (xid, field, change['old'].get(field), change['new'].get(field))
                     for field in change['affectedColumns'] ])
+    db_store_change_answers(xid, 'E', change['questions'])
+    db_store_change_answers(xid, 'V', change['vehicle_questions'])
     return True
 
 def db_update_change(xid, data):
@@ -452,6 +469,14 @@ def db_fetch_change_id(uid):
     else:
         return None
 
+def db_fetch_change_answers(xid, kind):
+    c = DB.execute('''
+        select questions.uid as id, header, descr as text, old_answer, new_answer
+        from change_answers join questions using (qid)
+        where xid=? and questions.kind=?
+        ''', (xid, kind))
+    return [ dict(row) for row in c ]
+
 def db_fetch_change(id):
     if re.match(r'^\d+$', id):
         c = DB.execute('select xid, uid, %s from changes where xid=?'
@@ -468,6 +493,8 @@ def db_fetch_change(id):
     change['affectedColumns'] = [ f['field'] for f in fields ]
     change['old'] = { f['field'] : f['old_value'] for f in fields }
     change['new'] = { f['field'] : f['new_value'] for f in fields }
+    change['questions'] = db_fetch_change_answers(change['xid'], 'E')
+    change['vehicle_questions'] = db_fetch_change_answers(change['xid'], 'V')
     return change
 
 def db_fetch_all_changes():
@@ -1027,6 +1054,23 @@ def do_entries():
 
 
 def do_update():
+    def qdiff(old, new):
+        diff = { x['id'] : {
+            'id' : x['id'], 'header' : x['header'], 'text' : x['text'],
+            'old_answer' : x['answer'], 'new_answer' : None
+            } for x in old }
+        for x in new:
+            if x['id'] not in diff:
+                diff[x['id']] = {
+                        'id' : x['id'], 'header' : x['header'], 'text' : x['text'],
+                        'old_answer' : None, 'new_answer' : x['answer']
+                        }
+            elif str(diff[x['id']]['old_answer']) != str(x['answer']):
+                diff[x['id']]['new_answer'] = x['answer']
+            else:
+                del diff[x['id']]
+        return diff.values()
+
     db_open()
     for change in sorted(msr_get_changes(), key=lambda x : x['ts']):
         if Options.debug:
@@ -1120,6 +1164,16 @@ def do_update():
                 change['new'].update((field, new_rec[field])
                         for field in msr_member_only_fields + msr_attendee_only_fields)
 
+                # Add event and vehicle questions to the change
+                change['questions'] = [ {
+                        'id' : x['id'], 'header' : x['header'], 'text' : x['text'],
+                        'old_answer' : None, 'new_answer' : x['answer'] }
+                        for x in new_rec['questions'] ]
+                change['vehicle_questions'] = [ {
+                        'id' : x['id'], 'header' : x['header'], 'text' : x['text'],
+                        'old_answer' : None, 'new_answer' : x['answer'] }
+                        for x in new_rec['vehicle_questions'] ]
+
                 # Build custom fields and add them to the change
                 build_custom_fields(new_rec)
                 change['affectedColumns'].update(new_rec['CF'].keys())
@@ -1179,6 +1233,11 @@ def do_update():
                         change['old'][field] = old_rec.get(field)
                         change['new'][field] = new_rec.get(field)
 
+                # Add event and vehicle questions to the change
+                change['questions'] = qdiff(old_rec['questions'], new_rec['questions'])
+                change['vehicle_questions'] = qdiff(
+                        old_rec['vehicle_questions'], new_rec['vehicle_questions'])
+
                 # Detect differences in custom fields
                 build_custom_fields(new_rec)
                 build_custom_fields(old_rec)
@@ -1217,6 +1276,8 @@ def do_update():
 
                 # Update the existing assignment in the database
                 old_rec['status'] = change['new']['attendeeStatus']
+                change['questions'] = []
+                change['vehicle_questions'] = []
                 db_store_assign(old_rec)
 
             else:
@@ -1284,11 +1345,31 @@ def show_change_results(recs):
             for field in sorted(data['affectedColumns']):
                 print(ufmt.format(field=field,
                     old=data['old'][field], new=data['new'][field]).rstrip())
+            if Options.event_questions:
+                for q in sorted(data['questions'], key=lambda q: q['header']):
+                    print(ufmt.format(field=q['header'],
+                        old=q['old_answer'], new=q['new_answer']
+                        ).rstrip())
+            if Options.vehicle_questions:
+                for q in sorted(data['vehicle_questions'], key=lambda q: q['header']):
+                    print(ufmt.format(field=q['header'],
+                        old=q['old_answer'], new=q['new_answer']
+                        ).rstrip())
             print()
         elif Options.verbose and data['action'] != 'DROP':
             for field in sorted(data['affectedColumns']):
                 print(nfmt.format(field=field,
                     old=data['old'][field], new=data['new'][field]).rstrip())
+            if Options.event_questions:
+                for q in sorted(data['questions'], key=lambda q: q['header']):
+                    print(nfmt.format(field=q['header'],
+                        old=q['old_answer'], new=q['new_answer']
+                        ).rstrip())
+            if Options.vehicle_questions:
+                for q in sorted(data['vehicle_questions'], key=lambda q: q['header']):
+                    print(nfmt.format(field=q['header'],
+                        old=q['old_answer'], new=q['new_answer']
+                        ).rstrip())
             print()
 
 
@@ -1423,8 +1504,10 @@ def process_args():
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
     p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
-    p.add_argument('-v', '--verbose', action='store_true',
-            help='Show changed fields')
+    p.add_argument('-v', '--verbose', action='store_true', help='Show changed fields')
+    p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
+    p.add_argument('--event-questions',   action='store_true', help='Include event questions')
+    p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_changes)
     p.set_defaults(_required = ('database',))
