@@ -60,6 +60,7 @@ always_irrelevant = [
     'attendeeId', 'classId', 'classModifierId', 'groupId',
     'instructorprofileuri', 'instructoruri', 'memberuri',
     'profileuri', 'segmenturi', 'vehicleuri',
+    'uidclub', 'uidmember', 'uidvehicle', 'part',
 ]
 
 
@@ -1341,15 +1342,22 @@ def show_change_results(recs):
                 'C' if data['appliedC'] else '-' +
                 'R' if data['appliedR'] else '-' )
         data['_count'] = len(data['affectedColumns'])
+        if not data['isRelevant'] and not Options.irrelevant:
+            continue
         if (Options.filter and not
                 functools.reduce(lambda x,f: x and f[1].search(data[f[0]]),
                     Options.filter, True)):
             continue
         print(fmt.format(**data).rstrip())
-        if Options.verbose and data['action'] == 'UPD':
-            for field in sorted(data['affectedColumns']):
-                print(ufmt.format(field=field,
-                    old=data['old'][field], new=data['new'][field]).rstrip())
+        if data['action'] == 'UPD':
+            if Options.verbose:
+                for field in sorted(data['affectedColumns']):
+                    if Options.verbose < 2 and field != 'dateRegistered' and (
+                            msr_change_field_names.get(field, field) is None or
+                            msr_change_field_names.get(field, field) in Config['irrelevantFields']):
+                        continue
+                    print(ufmt.format(field=msr_change_field_names.get(field, field) or field,
+                        old=data['old'][field], new=data['new'][field]).rstrip())
             if Options.event_questions:
                 for q in sorted(data['questions'], key=lambda q: q['header']):
                     print(ufmt.format(field=q['header'],
@@ -1361,10 +1369,15 @@ def show_change_results(recs):
                         old=q['old_answer'], new=q['new_answer']
                         ).rstrip())
             print()
-        elif Options.verbose and data['action'] != 'DROP':
-            for field in sorted(data['affectedColumns']):
-                print(nfmt.format(field=field,
-                    old=data['old'][field], new=data['new'][field]).rstrip())
+        elif data['action'] != 'DROP':
+            if Options.verbose:
+                for field in sorted(data['affectedColumns']):
+                    if Options.verbose < 2 and field != 'dateRegistered' and (
+                            msr_change_field_names.get(field, field) is None or
+                            msr_change_field_names.get(field, field) in Config['irrelevantFields']):
+                        continue
+                    print(nfmt.format(field=msr_change_field_names.get(field, field) or field,
+                        old=data['old'][field], new=data['new'][field]).rstrip())
             if Options.event_questions:
                 for q in sorted(data['questions'], key=lambda q: q['header']):
                     print(nfmt.format(field=q['header'],
@@ -1509,9 +1522,10 @@ def process_args():
     p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to dump')
     p.add_argument('-l', '--long', action='store_true', help='Show more columns')
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
+    p.add_argument('-i', '--irrelevant', action='store_true', help='Also show irrelevant changes')
     p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
-    p.add_argument('-v', '--verbose', action='store_true', help='Show changed fields')
+    p.add_argument('-v', '--verbose', action='count', help='Show changed fields (-vv for irrelevant ones)')
     p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
