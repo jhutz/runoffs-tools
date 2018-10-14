@@ -969,9 +969,9 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
         return
 
     if Options.long:
-        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
+        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year!s:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
     else:
-        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year:4} {_MM:22}'
+        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year!s:4} {_MM:22}'
     col_headers = {
             'vehicleNumber'   : 'No.',
             'classShort'      : 'Class',
@@ -1006,6 +1006,10 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
                     Options.filter, True)):
             continue
         print(fmt.format(**data).rstrip())
+        if Options.verbose:
+            for f in sorted((k,v) for k,v in data.items()
+                    if not isinstance(v, list) and not isinstance(v, dict)):
+                print('  {0:38} {1}'.format(*f))
         if Options.event_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['questions'] ]):
                 print('  EQ:{0:35} {1}'.format(*q))
@@ -1464,6 +1468,7 @@ def process_args():
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
     p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
+    p.add_argument('-v', '--verbose', action='store_true', help='Show all fields')
     p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
@@ -1486,6 +1491,7 @@ def process_args():
     p.add_argument('-s', '--sort', action='store_true', help='Sort by class, no')
     p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
+    p.add_argument('-v', '--verbose', action='store_true', help='Show all fields')
     p.add_argument('-q', '--questions',   action='store_true', help='Include all questions')
     p.add_argument('--event-questions',   action='store_true', help='Include event questions')
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
