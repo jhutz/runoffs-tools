@@ -876,7 +876,7 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
             (k,v) = next(iter(field.items()))
         fields.append(k)
         header[k] = v
-    if Options.questions or Options.event_questions:
+    if Options.event_questions:
         # Add event question columns
         if fromdb:
             att_data = recs
@@ -891,7 +891,7 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
         fields.extend(Q.pop(f,f) for f in Config['csvEventQuestions'])
         header.update((f,f) for f in fields if f not in header)
         fields.extend(sorted(Q.values()))
-    if Options.questions or Options.vehicle_questions:
+    if Options.vehicle_questions:
         # Add vehicle question columns
         Q = { q['header'] : q['id'] for rec in recs for q in rec['vehicle_questions'] }
         header.update((v,k) for k,v in Q.items())
@@ -965,7 +965,7 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
         if Options.custom_fields and not fromdb:
             msr_add_member_info(data, cache=mem_cache)
             msr_add_attendee_info(data, cache=att_cache)
-        elif (Options.questions or Options.event_questions) and not fromdb:
+        elif Options.event_questions and not fromdb:
             msr_add_attendee_info(data, cache=att_cache)
         if Options.custom_fields:
             build_custom_fields(data)
@@ -979,10 +979,10 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
                     Options.filter, True)):
             continue
         print(fmt.format(**data).rstrip())
-        if Options.questions or Options.event_questions:
+        if Options.event_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['questions'] ]):
                 print('  EQ:{0:35} {1}'.format(*q))
-        if Options.questions or Options.vehicle_questions:
+        if Options.vehicle_questions:
             for q in sorted([ (q['header'], q['answer']) for q in data['vehicle_questions'] ]):
                 print('  VQ:{0:35} {1}'.format(*q))
         if Options.custom_fields:
@@ -999,7 +999,7 @@ def do_assigns():
         if Options.custom_fields or Options.csv or Options.tsv or Options.csv_format:
             mem_cache = msr_get_member_dict(cleanup=not Options.dump)
             att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
-        elif Options.questions or Options.event_questions:
+        elif Options.event_questions:
             att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
     show_assign_results(recs, att_cache, mem_cache)
 
@@ -1451,6 +1451,11 @@ def process_args():
         for x in missing: sys.stderr.write("--%s is required\n" % x)
         ap.print_usage(file=sys.stderr)
         ap.exit(status=2)
+    if getattr(Options, 'questions', False) and hasattr(Options, 'event_questions'):
+        Options.event_questions = True
+    if getattr(Options, 'questions', False) and hasattr(Options, 'vehicle_questions'):
+        Options.vehicle_questions = True
+
 
     Options._func(*getattr(Options, '_args', ()))
 
