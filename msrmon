@@ -54,6 +54,15 @@ config_default_csv = [
     { 'uniqueId'       : 'Unique ID' },
 ]
 
+# These fields are always irrelevant
+always_irrelevant = [
+    'id', 'lastUpdate', 'data',
+    'attendeeId', 'classId', 'classModifierId', 'groupId',
+    'instructorprofileuri', 'instructoruri', 'memberuri',
+    'profileuri', 'segmenturi', 'vehicleuri',
+]
+
+
 # columns in the database changes table
 change_columns = [ 'uidAssignment', 'ts', 'authorName', 'authorEmail',
         'action', 'class', 'car', 'driver',
@@ -198,6 +207,11 @@ def load_config():
     if Options.password is None and Options.pwfile is not None:
         with open(Options.pwfile) as pwfile:
             Options.password = pwfile.readline().strip()
+    if 'irrelevantFields' in Config:
+        Config['irrelevantFields'] = set(Config['irrelevantFields'])
+        Config['irrelevantFields'].update(always_irrelevant)
+    else:
+        Config['irrelevantFields'] = set(always_irrelevant)
 
 def is_uid(s):
     if not isinstance(s, str): return False
@@ -1124,7 +1138,6 @@ def do_update():
                     continue
 
                 # Generate metadata for this change
-                change['isRelevant']  = True #XXX
                 change['isCarChange'] = 'uidvehicle' in change['affectedColumns']
                 change['class']       = old_rec.get('classShort',
                         change['old'].get('vchclass',
@@ -1175,6 +1188,11 @@ def do_update():
                         change['old'][field] = old_rec['CF'].get(field)
                         change['new'][field] = new_rec['CF'].get(field)
 
+                change['isRelevant'] = (change['isCarChange'] or change['action'] == 'REST'
+                        or bool( { msr_change_field_names.get(field, field)
+                            for field in change['affectedColumns'] }
+                            - Config['irrelevantFields'] ))
+
             elif change['action'] == 'DROP':
                 ### Dropped or cancelled assignment
                 old_rec = db_fetch_assign(change['uidAssignment'])
@@ -1220,7 +1238,7 @@ def show_change_results(recs):
     else:
         recs = sorted(recs, key=lambda r: r['xid'])
     if Options.dump:
-        dumpobj(recs)
+        pprint.pprint(recs)
         return
 
     if Options.long:
