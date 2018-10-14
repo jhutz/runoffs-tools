@@ -841,6 +841,7 @@ def do_members():
 
     if Options.dump:
         dumpobj(recs)
+    print("Human-readable member list not implemented\n")
 
 def do_attendees():
     if Options.items:
@@ -1002,7 +1003,7 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
         data['registered'] = format_ts(parse_ts(data['registered']))
         data['lastUpdate'] = format_ts(parse_ts(data['lastUpdate']))
         if (Options.filter and not
-                functools.reduce(lambda x,f: x and f[1].search(data[f[0]]),
+                functools.reduce(lambda x,f: x and f[1].search(str(data[f[0]])),
                     Options.filter, True)):
             continue
         print(fmt.format(**data).rstrip())
