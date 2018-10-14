@@ -541,8 +541,8 @@ def msr_get_member(item):
         _msr_load_fake_members()
         return deepcopy(Fake_Members.get(item, None))
     j = msr_get('members/%s' % item, msr_member_params)
-    try: rec = j['response']['members'][0]
-    except IndexError: return None
+    try: rec = j['response']['member']
+    except KeyError: return None
     return _msr_cleanup(rec)
 
 def msr_get_member_list(cleanup=True):
