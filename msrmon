@@ -1183,10 +1183,11 @@ def do_update():
                         ],
                     id                = asn['id'],
                     attendeeId        = att['id'],
-                    memberuri         = mem['uri'],
+                    memberuri         = '/members/' + mem['id'],
                     vehicle_questions = asn['vehicle_questions'],
-                    vehicleuri = mem['uri'] + '/vehicles/' + change['new']['uidvehicle']
                     )
+                if change['new'].get('uidvehicle') is not None:
+                    new_rec['vehicleuri'] = new_rec['memberuri'] + '/vehicles/' + change['new']['uidvehicle']
                 msr_add_member_info(new_rec, mem=mem)
                 msr_add_attendee_info(new_rec, att=att)
                 db_store_assign(new_rec)
