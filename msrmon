@@ -643,6 +643,17 @@ def msr_get_assign_list(cleanup=True):
         return map(_msr_cleanup, j['response']['assignments'])
     return j['response']['assignments']
 
+def msr_get_assign_dict(cleanup=True):
+    if Options.assign_data is not None:
+        _msr_load_fake_assigns()
+        return { k : deepcopy(v) for k,v in Fake_Assigns.items() }
+    j = msr_get('events/%s/segments/%s/assignments' %
+            (Options.event_id, Options.segment_id),
+            msr_assign_params)
+    if cleanup:
+        return { x['id'] : _msr_cleanup(x) for x in j['response']['assignments'] }
+    return { x['id'] : x for x in j['response']['assignments'] }
+
 
 def msr_add_member_info(rec, cache=None, mem=None):
     """Augment an assignment or attendee by adding data from the member record."""
@@ -1078,7 +1089,15 @@ def do_update():
         return diff.values()
 
     db_open()
-    for change in sorted(msr_get_changes(), key=lambda x : x['ts']):
+    changes = msr_get_changes()
+    asn_cache = {}
+    att_cache = {}
+    mem_cache = {}
+    if len(changes) > 25:
+        asn_cache = msr_get_assign_dict()
+        mem_cache = msr_get_member_dict()
+        att_cache = msr_get_attendee_dict()
+    for change in sorted(changes, key=lambda x : x['ts']):
         if Options.debug:
             sys.stderr.write('processing change %s\n' % change['uid'])
             pprint.pprint(change, stream=sys.stderr)
@@ -1120,9 +1139,19 @@ def do_update():
             change['new']['attendeeStatus'] = 'DELETED';
 
         # Prefetch some related data from MSR
-        asn = msr_get_assign(change['uidAssignment'])
-        att = msr_get_attendee(change['attendeeId'])
-        mem = msr_get_member(att['memberuri'].replace('/members/',''))
+        if asn_cache:
+            asn = asn_cache[change['uidAssignment']]
+        else:
+            asn = msr_get_assign(change['uidAssignment'])
+        if att_cache:
+            att = att_cache[change['attendeeId']]
+        else:
+            att = msr_get_attendee(change['attendeeId'])
+        memId = att['memberuri'].replace('/members/','')
+        if mem_cache:
+            mem = mem_cache[memId]
+        else:
+            mem = msr_get_member(memId)
 
         with DB:
             if change['action'] == 'NEW':
