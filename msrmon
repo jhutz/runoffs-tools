@@ -958,7 +958,7 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
         data['registered'] = format_ts(parse_ts(data['registered']))
         data['lastUpdate'] = format_ts(parse_ts(data['lastUpdate']))
         if (Options.filter and not
-                functools.reduce(lambda x,f: x and f[1].search(data[f[0]]),
+                functools.reduce(lambda x,f: x and f[1].search(str(data[f[0]])),
                     Options.filter, True)):
             continue
         if 'questions' in data:
@@ -971,7 +971,7 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
 def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
     if Options.sort:
         recs = sorted(recs, key=lambda r:
-                (r['classShort'],
+                (str(r['classShort']),
                     int(r['vehicleNumber']) if re.match('^\d+$', r['vehicleNumber']) else 0,
                     r['vehicleNumber'].startswith('0')))
     if Options.dump:
@@ -1339,9 +1339,9 @@ def show_change_results(recs):
         return
 
     if Options.long:
-        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_rel:3} {_cc:3} {_prt:3} {_done:4} {action:4} {_count:>3} {class:6.6} {car!s:>3} {driver:25} {authorName:25} {uid:36}'
+        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_rel:3} {_cc:3} {_prt:3} {_done:4} {action:4} {_count:>3} {class!s:6.6} {car!s:>3} {driver!s:25} {authorName:25} {uid:36}'
     else:
-        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {class:6.6} {car!s:>3} {driver:25}'
+        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {class!s:6.6} {car!s:>3} {driver!s:25}'
     nfmt = '     {field:20} {new!s:40}'
     ufmt = '     {field:20} {old!s:40} {new!s:40}'
 
@@ -1375,7 +1375,7 @@ def show_change_results(recs):
         if not data['isRelevant'] and not Options.irrelevant:
             continue
         if (Options.filter and not
-                functools.reduce(lambda x,f: x and f[1].search(data[f[0]]),
+                functools.reduce(lambda x,f: x and f[1].search(str(data[f[0]])),
                     Options.filter, True)):
             continue
         print(fmt.format(**data).rstrip())
