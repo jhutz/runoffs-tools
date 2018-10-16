@@ -698,9 +698,18 @@ def msr_get_changes(cleanup=True):
         return fake_changes
 
     params = { 'segments' : Options.segment_id }
-    # XXX look up last known change in database
     if Options.since is not None:
         params['since'] = Options.since.strftime('%Y-%m-%d %H:%M:%S.%f')
+    elif 'DB' in globals():
+        with DB:
+            c = DB.execute('select max(ts) since from changes')
+            r = c.fetchall()
+            if r:
+                since = r[0]['since']
+                if not isinstance(since, datetime):
+                    since = convert_timestamp(bytes(since, 'utf8'))
+                if since is not None:
+                    params['since'] = since.strftime('%Y-%m-%d %H:%M:%S.%f')
     j = msr_get('events/%s/feeds/timing' % Options.event_id, params=params)
     if not j['success']:
         sys.stderr.write('MSR API request failed:')
@@ -708,7 +717,7 @@ def msr_get_changes(cleanup=True):
             sys.stderr.write(e)
         sys.exit(1)
     if cleanup:
-        return map(_msr_cleanup, j['data'])
+        return _msr_cleanup(j['data'])
     return j['data']
 
 
