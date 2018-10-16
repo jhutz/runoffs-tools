@@ -12,19 +12,17 @@ use URI::Escape;
 use Text::Wrap;
 
 use strict;
-use vars qw($PROG $PROGDIR $LOGOFILE $LOGOPATH $LOGODATA %ClassKey);
+use vars qw($LOGOFILE $LOGOPATH $LOGODATA %ClassKey);
 use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
 use vars qw($OutDir $Template $Printer $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
 
-$PROG = File::Spec->rel2abs($0);
-$PROGDIR = dirname($PROG);
 $LOGOFILE = 'scca-runoffs-indy-pos-transparent.eps';
-$LOGOPATH = "$PROGDIR/../Images/$LOGOFILE";
+$LOGOPATH = "$ENV{HOME}/runoffs/Images/$LOGOFILE";
 
 $SERVER   = 'racecontrol.scca.com';
 $USERID   = 'tandsusr1';
-$OutDir   = "$PROGDIR/../Actions";
+$OutDir   = "$ENV{HOME}/runoffs/Actions";
 $Template = join('', <DATA>);
 
 $Text::Wrap::unexpand = 0;
