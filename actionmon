@@ -525,9 +525,9 @@ sub db_open () {
   $DB->do('create table if not exists action_data (
     aid integer not null,
     field text not null,
-    value text
+    value text,
     primary key (aid,field)
-    ');
+    )');
 }
 
 sub db_action_exists ($) {
@@ -602,8 +602,8 @@ sub parse_action ($;$) {
           $rownum =~ s/.*_//;
           $action = {
             _rownum => $rownum,
-            logo_file => $LOGOFILE,
-            logo_data => $LOGODATA,
+            #logo_file => $LOGOFILE,
+            #logo_data => $LOGODATA,
           };
           unshift(@actions, $action);
 
@@ -680,7 +680,8 @@ sub get_action_detail ($$$) {
 sub print_report ($$) {
   my($template, $fields) = @_;
 
-  $template =~ s/\@(\w+)\@/$$fields{$1}/g;
+  my %fields = (%$fields, logo_file => $LOGOFILE, logo_data => $LOGODATA);
+  $template =~ s/\@(\w+)\@/$fields{$1}/g;
   my $P = new IO::Pipe;
   $P->writer('lp', "-d$Printer") or die "lp: $!\n";
   print $P $template;
