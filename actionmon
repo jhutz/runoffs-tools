@@ -17,7 +17,7 @@ use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
 use vars qw($OutDir $Template $Printer $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
 
-$LOGOFILE = 'scca-runoffs-indy-pos-transparent.eps';
+$LOGOFILE = 'scca-runoffs-sonoma-pos-051818-small-alpha.eps';
 $LOGOPATH = "$ENV{HOME}/runoffs/Images/$LOGOFILE";
 
 $SERVER   = 'racecontrol.scca.com';
@@ -736,7 +736,7 @@ __DATA__
 %%Page: 1 1
 
 % Runoffs Logo -- copy bbox from logo EPS header
-/logo_bbox {14 14 344 250} def
+/logo_bbox {14 14 339 204} def
 /logo_scale 0.30 def
 
 BeginEPSF
