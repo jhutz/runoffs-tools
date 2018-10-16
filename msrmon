@@ -1098,6 +1098,7 @@ def do_update():
 
     db_open()
     changes = msr_get_changes()
+    print("Processing %d changes\n" % len(changes))
     asn_cache = {}
     att_cache = {}
     mem_cache = {}
