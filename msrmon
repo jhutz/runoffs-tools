@@ -10,6 +10,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from dateutil import parser as dateutil_parser, tz
 import re
+from string import Template
 import argparse
 import requests
 import sqlite3
@@ -20,11 +21,11 @@ import yaml
 # These config options are pathnames
 # They are subject to environment and ~ expansion, and if relative,
 # will be interpreted relative to the location of the config file.
-config_paths = ('database', 'pwfile')
+config_paths = ('database', 'pwfile', 'logo_file')
 
 # These command-line options can be set in the config file
 opts_from_config = ('database', 'server', 'userid', 'password', 'pwfile',
-            'org-id', 'event-id', 'segment-id', 'timezone')
+            'org-id', 'event-id', 'segment-id', 'timezone', 'printer')
 
 # Default values for some options.
 # Only needed for options that appear in opts_from_config
@@ -213,6 +214,9 @@ def load_config():
         Config['irrelevantFields'].update(always_irrelevant)
     else:
         Config['irrelevantFields'] = set(always_irrelevant)
+    if 'logo_file' in Config:
+        with open(Config['logo_file'], 'r') as f:
+            Config['logo_data'] = f.read()
 
 def is_uid(s):
     if not isinstance(s, str): return False
@@ -1078,6 +1082,48 @@ def do_entries():
     show_assign_results(recs, fromdb=True)
 
 
+def ps_str(item):
+    return '(' + re.sub(r'([()\\])', r'\\\1', str(item)) + ')'
+
+def print_change(change):
+    if 'printTemplate' not in Config:
+        sys.stderr.write('No print template defined!\n')
+        return
+    prtfields = Config.get('printFields', [])
+    ignfields = set(prtfields + Config.get('noPrintFields', []))
+    ignfields.update(Config['irrelevantFields'])
+
+    fields = {
+        'xid'       : ps_str(change['xid']),
+        'logo_file' : Config.get('logo_file', ''),
+        'logo_data' : Config.get('logo_data', ''),
+        'stamp'     : ps_str(change['ts'].strftime('%b %d %H:%M')),
+        'by'        : ps_str(change['authorName']),
+        'status'    : '()',
+        'old_vehicleNumber' : ps_str(change['car']),
+        'new_vehicleNumber' : ps_str(change['car']),
+        'old_classShort'    : ps_str(change['class']),
+        'new_classShort'    : ps_str(change['class']),
+        'old_fullName'      : ps_str(change['driver']),
+        'new_fullName'      : ps_str(change['driver']),
+    }
+    fields.update({ 'old_' + k : ps_str('') for k in prtfields })
+    fields.update({ 'new_' + k : ps_str('') for k in prtfields })
+    fields.update({ 'old_' + k : ps_str(v) for k,v in change['old'].items() })
+    fields.update({ 'new_' + k : ps_str(v) for k,v in change['new'].items() })
+    if change['action'] == 'NEW':  fields['status'] = ps_str('NEW ENTRY')
+    if change['action'] == 'DROP': fields['status'] = ps_str('WITHDRAWN')
+    if change['action'] == 'REST': fields['status'] = ps_str('REINSTATED')
+    fields['other_old'] = ''.join("%s %s Field newline" % (ps_str(k), ps_str(v))
+            for k,v in change['old'].items() if k not in ignfields)
+    fields['other_new'] = ''.join("%s %s Field newline" % (ps_str(k), ps_str(v))
+            for k,v in change['new'].items() if k not in ignfields)
+    #XXX warnings
+    text = Template(Config['printTemplate']).substitute(fields)
+    with os.popen('lp -d%s' % Options.printer, 'w') as lp:
+        lp.write(text)
+
+
 def do_update():
     def qdiff(old, new):
         diff = { x['id'] : {
@@ -1453,6 +1499,23 @@ def do_changes():
     show_change_results(recs)
 
 
+def do_print():
+    db_open()
+    with DB:
+        if Options.items:
+            recs = [ db_fetch_change(item) for item in Options.items ]
+        else:
+            recs = [ x for x in db_fetch_all_changes()
+                    if x['isRelevant'] and not x['printed'] and
+                    not (x['appliedA'] and x['appliedB'] and
+                        x['appliedC'] and x['appliedR']) ]
+    recs = sorted(recs, key=lambda r: r['xid'])
+    for rec in recs:
+        print_change(rec)
+        if not Options.no_update:
+            with DB:
+                db_update_change(rec['xid'], { 'printed' : True })
+
 def do_dump_changes():
     dumpobj(msr_get_changes(cleanup=False))
 
@@ -1586,6 +1649,13 @@ def process_args():
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_changes)
     p.set_defaults(_required = ('database',))
+
+    p = sp.add_parser('print', help='Print changes')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Change IDs to print')
+    p.add_argument('-n', '--no-update', help='Do not update printed flag')
+    p.add_argument('-p', '--printer', help='Printer to use')
+    p.set_defaults(_func = do_print)
+    p.set_defaults(_required = ('database','printer'))
 
     p = sp.add_parser('dump_changes', help='Dump raw change data')
     p.add_argument('-t', '--since', type=parse_ts, help='Start time')
