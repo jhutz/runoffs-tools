@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
+use DBI;
 use File::Basename;
 use Getopt::Std;
 use HTML::Parser;
@@ -14,7 +15,7 @@ use Text::Wrap;
 use strict;
 use vars qw($LOGOFILE $LOGOPATH $LOGODATA %ClassKey);
 use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
-use vars qw($OutDir $Template $Printer $SERVER $USERID $PASSWD);
+use vars qw($DBPath $DB $Template $Printer $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
 
 $LOGOFILE = 'scca-runoffs-sonoma-pos-051818-small-alpha.eps';
@@ -22,7 +23,7 @@ $LOGOPATH = "$ENV{HOME}/runoffs/Images/$LOGOFILE";
 
 $SERVER   = 'racecontrol.scca.com';
 $USERID   = 'tandsusr1';
-$OutDir   = "$ENV{HOME}/runoffs/Actions";
+$DBPath   = "$ENV{HOME}/runoffs/Results/actions.db";
 $Template = join('', <DATA>);
 
 $Text::Wrap::unexpand = 0;
@@ -450,12 +451,14 @@ $Text::Wrap::unexpand = 0;
   '7d945eb2-0767-49f4-a2f5-1128db0bf9e5' => 'Race 10/21 16:45 FB',
 );
 
+#XXX -l list actions in DB
+#XXX -a (re)print specified actions
 sub usage  {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
-Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-o outdir] [-p printer]
+Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer]
                  [-rm] [file]
-       actionmon [-dvx] [-H host] [-U user] [-P pass] [-o outdir] [-p printer]
+       actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer]
                  -u [-f] act_no...
        actionmon -h
   -d  Debug
@@ -472,7 +475,7 @@ Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-o outdir] [-p printer]
   -H  action system server host
   -U  action system userid
   -P  action system password
-  -o  Output directory [$OutDir]
+  -D  database file [$DBPath]
   -p  Print to specified printer
 
 EOF
@@ -482,7 +485,7 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('dfhmruvxo:p:H:U:P:', \%opts) or usage("Invalid option!");
+  getopts('dfhmruvxp:D:H:U:P:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
   $DEBUG++   if $opts{d};
   $VERBOSE++ if $opts{v};
@@ -492,7 +495,7 @@ sub parse_args () {
   $UPDATE++  if $opts{u};
   $FORCE++   if $opts{f};
 
-  $OutDir   = $opts{o} if defined $opts{o};
+  $DBPath   = $opts{D} if defined $opts{D};
   $Printer  = $opts{p} if defined $opts{p};
   $SERVER   = $opts{H} if defined $opts{H};
   $USERID   = $opts{U} if defined $opts{U};
@@ -513,6 +516,45 @@ sub parse_args () {
     }
     $F->close;
   }
+}
+
+
+sub db_open () {
+  $DB = DBI->connect("dbi:SQLite:dbname=$DBPath", '', '',
+    { RaiseError => 1, AutoCommit => 0 });
+  $DB->do('create table if not exists action_data (
+    aid integer not null,
+    field text not null,
+    value text
+    primary key (aid,field)
+    ');
+}
+
+sub db_action_exists ($) {
+  my($aid) = @_;
+  my $count = $DB->selectrow_array(
+    'select count(*) from action_data where aid = ?', {}, $aid);
+  return $count;
+}
+
+sub db_store_action ($$) {
+  my($aid, $a) = @_;
+
+  $DB->do('delete from action_data where aid = ?', {}, $aid);
+  my $S = $DB->prepare('insert into action_data (aid, field, value)
+    values (?,?,?)');
+  while (my($k, $v) = each(%$a)) {
+    $S->execute($aid, $k, $v);
+  }
+  $DB->commit;
+}
+
+sub db_fetch_action ($) {
+  my($aid) = @_;
+
+  return { map(@$_, @{
+    $DB->selectall_arrayref(
+    'select field,value from action_data where aid=?', {}, $aid) }) };
 }
 
 
@@ -625,20 +667,6 @@ sub parse_action ($;$) {
 }
 
 
-#sub get_action_detail ($$$) {
-#  my($aid, $rownum, $cls_key) = @_;
-#  my $path = "/tmp/a$aid.html";
-#
-#  if (-f $path) {
-#    my $F = new IO::File($path, O_RDONLY) or die "$path: $!\n";
-#    my $text = join('', <$F>);
-#    $F->close;
-#    return $text;
-#  }
-#  return undef;
-#}
-
-
 sub get_action_detail ($$$) {
   my($aid, $rownum, $cls_key) = @_;
 
@@ -649,15 +677,14 @@ sub get_action_detail ($$$) {
 }
 
 
-sub make_report ($$$) {
-  my($template, $out, $fields) = @_;
+sub print_report ($$) {
+  my($template, $fields) = @_;
 
   $template =~ s/\@(\w+)\@/$$fields{$1}/g;
-  my $F = new IO::File("$out.new", O_RDWR|O_CREAT|O_TRUNC, 0666)
-    or die "$out.new: $!\n";
-  print $F $template;
-  $F->close;
-  rename("$out.new", $out);
+  my $P = new IO::Pipe;
+  $P->writer('lp', "-d$Printer") or die "lp: $!\n";
+  print $P $template;
+  $P->close;
 }
 
 
@@ -672,15 +699,14 @@ sub process_actions ($) {
 
   foreach my $a (@actions) {
     my $aid = $$a{act_number};
-    my $path = "$OutDir/$aid.ps";
     my $stamp = strftime("%b %d %H:%M", localtime(time));
 
     if ($UPDATE) {
       #print "$aid / ", join(' ', @ARGV), "\n";
       next unless grep($aid == $_, @ARGV);
-    } else {
-      print "$stamp DUP $aid\n" if $MONITOR && $VERBOSE && -f $path;
-      next if -f $path;
+    } elsif (db_action_exists($aid)) {
+      print "$stamp DUP $aid\n" if $MONITOR && $VERBOSE;
+      next;
     }
 
     # This will get overwritten with a longer form in the detail page
@@ -714,12 +740,13 @@ sub process_actions ($) {
     my @drivers = (split(m{\n}m, $$a{protestor}),
                    split(m{\n}m, $$a{protestee}));
     my @entries = map([ $cars[$_], $classes[$_], $drivers[$_] ], 0.. $#cars);
-    $$a{_entries_split} = [ @entries ];
-    $$a{_entries_full}  = [ map("#$$_[0] $$_[1] $$_[2]", @entries) ];
+    #$$a{_entries_split} = [ @entries ];
+    #$$a{_entries_full}  = [ map("#$$_[0] $$_[1] $$_[2]", @entries) ];
+    my @_entries_full  = map("#$$_[0] $$_[1] $$_[2]", @entries);
     $$a{_entries_brief} = join(', ', map("#$$_[0] $$_[1]", @entries));
 
     if (@entries) {
-      foreach (@{$$a{_entries_full}}) {
+      foreach (@_entries_full) {
         $$a{__entries__} .= "() ($_) Field newline\n";
       }
       $$a{__entries__} =~ s/^\(\)/(Car(s))/;
@@ -736,7 +763,7 @@ sub process_actions ($) {
 
     $report = sprintf("#%3d %-5s %-5s %-7s %s\n  %s\n",
       $$a{act_number}, $$a{_date}, $$a{_time}, $$a{act_type},
-      @entries > 1 ? $$a{_entries_brief} : $$a{_entries_full}[0],
+      @entries > 1 ? $$a{_entries_brief} : $_entries_full[0],
       $$a{_short_desc});
 
     if (!$UPDATE && (
@@ -774,9 +801,9 @@ sub process_actions ($) {
       print STDERR "\n";
     }
 
-    if ($FORCE || ! -f $path) {
-      make_report($Template, $path, $a);
-      system ('lp', "-d$Printer", $path) if $Printer;
+    if ($FORCE || ! db_action_exists($aid)) {
+      db_store_action($aid, $a);
+      print_report($Template, $a) if $Printer;
     }
   }
 
@@ -828,6 +855,7 @@ $UA->cookie_jar( {} );
 push @{ $UA->requests_redirectable }, 'POST';
 $UA->show_progress(1);
 
+db_open();
 if ($UPDATE) {
   process_actions(get_data());
 } elsif ($GETONLY) {
