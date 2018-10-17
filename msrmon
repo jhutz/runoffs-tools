@@ -235,16 +235,20 @@ def parse_ts(timestr):
 def convert_timestamp(val):
     datepart, timepart = val.split(b" ")
     year, month, day = map(int, datepart.split(b"-"))
-    timepart, tzpart = timepart.split(b"+")
-    timepart_full = timepart.split(b".")
+    timepart_tz = timepart.split(b"+")
+    timepart_full = timepart_tz[0].split(b".")
     hours, minutes, seconds = map(int, timepart_full[0].split(b":"))
     if len(timepart_full) == 2:
         microseconds = int('{:0<6.6}'.format(timepart_full[1].decode()))
     else:
         microseconds = 0
-    #XXX should handle tzpart, but it's always UTC anyway
+    if len(timepart_tz) == 2 and timepart_tz[1] == b"00:00":
+        tzinfo = timezone.utc
+    else:
+        #XXX should handle timezone, but it's always UTC anyway
+        tzinfo=None
 
-    val = datetime(year, month, day, hours, minutes, seconds, microseconds)
+    val = datetime(year, month, day, hours, minutes, seconds, microseconds, tzinfo)
     return val
 
 sqlite3.register_converter("timestamp", convert_timestamp)
@@ -1097,7 +1101,7 @@ def print_change(change):
         'xid'       : ps_str(change['xid']),
         'logo_file' : Config.get('logo_file', ''),
         'logo_data' : Config.get('logo_data', ''),
-        'stamp'     : ps_str(change['ts'].strftime('%b %d %H:%M')),
+        'stamp'     : ps_str(change['ts'].astimezone().strftime('%b %d %H:%M')),
         'by'        : ps_str(change['authorName']),
         'status'    : '()',
         'old_vehicleNumber' : ps_str(change['car']),
@@ -1394,16 +1398,16 @@ def show_change_results(recs):
         return
 
     if Options.long:
-        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_rel:3} {_cc:3} {_prt:3} {_done:4} {action:4} {_count:>3} {class!s:6.6} {car!s:>3} {driver!s:25} {authorName:25} {uid:36}'
+        fmt = '{xid:>4} {_lts:%m/%d %H:%M} {_rel:3} {_cc:3} {_prt:3} {_done:4} {action:4} {_count:>3} {class!s:6.6} {car!s:>3} {driver!s:25} {authorName:25} {uid:36}'
     else:
-        fmt = '{xid:>4} {ts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {class!s:6.6} {car!s:>3} {driver!s:25}'
+        fmt = '{xid:>4} {_lts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {class!s:6.6} {car!s:>3} {driver!s:25}'
     nfmt = '     {field:20} {new!s:40}'
     ufmt = '     {field:20} {old!s:40} {new!s:40}'
 
     col_headers = {
             'uid'       : 'Change UID',
             'xid'       : 'Chg#',
-            'ts'        : 'Date/Time',
+            '_lts'      : 'Date/Time',
             '_rel'      : 'Rel',
             '_cc'       : 'CC?',
             '_prt'      : 'Prt', 
@@ -1418,6 +1422,7 @@ def show_change_results(recs):
     print_header(fmt, col_headers)
 
     for data in recs:
+        data['_lts'] = data['ts'].astimezone()
         data['_rel'] = 'Yes' if data['isRelevant'] else 'No'
         data['_cc']  = 'Yes' if data['isCarChange'] else 'No'
         data['_prt'] = 'Yes' if data['printed'] else 'No'
