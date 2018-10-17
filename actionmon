@@ -13,7 +13,7 @@ use URI::Escape;
 use Text::Wrap;
 
 use strict;
-use vars qw($LOGOFILE $LOGOPATH $LOGODATA %ClassKey);
+use vars qw($LOGOFILE $LOGOPATH $LOGODATA %ClassKey $LIST);
 use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
 use vars qw($DBPath $DB $Template $Printer $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
@@ -451,21 +451,21 @@ $Text::Wrap::unexpand = 0;
   '7d945eb2-0767-49f4-a2f5-1128db0bf9e5' => 'Race 10/21 16:45 FB',
 );
 
-#XXX -l list actions in DB
-#XXX -a (re)print specified actions
 sub usage  {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
 Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer]
                  [-rm] [file]
        actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer]
-                 -u [-f] act_no...
+                 [-au] [-f] act_no...
        actionmon -h
   -d  Debug
   -h  This help message
   -x  Fetch data file only
   -v  Verbose action list
 
+  -l  List actions in database
+  -a  Show/print specified actions
   -r  Print a summary report
   -m  Continually monitor the action system
   -u  Update specified actions...
@@ -485,7 +485,7 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('dfhmruvxp:D:H:U:P:', \%opts) or usage("Invalid option!");
+  getopts('dfhlmruvxp:D:H:U:P:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
   $DEBUG++   if $opts{d};
   $VERBOSE++ if $opts{v};
@@ -493,6 +493,7 @@ sub parse_args () {
   $REPORT++  if $opts{r};
   $MONITOR++ if $opts{m};
   $UPDATE++  if $opts{u};
+  $LIST++    if $opts{l};
   $FORCE++   if $opts{f};
 
   $DBPath   = $opts{D} if defined $opts{D};
@@ -521,7 +522,7 @@ sub parse_args () {
 
 sub db_open () {
   $DB = DBI->connect("dbi:SQLite:dbname=$DBPath", '', '',
-    { RaiseError => 1, AutoCommit => 0 });
+    { RaiseError => 1, AutoCommit => 1 });
   $DB->do('create table if not exists action_data (
     aid integer not null,
     field text not null,
@@ -546,7 +547,6 @@ sub db_store_action ($$) {
   while (my($k, $v) = each(%$a)) {
     $S->execute($aid, $k, $v);
   }
-  $DB->commit;
 }
 
 sub db_fetch_action ($) {
@@ -555,6 +555,10 @@ sub db_fetch_action ($) {
   return { map(@$_, @{
     $DB->selectall_arrayref(
     'select field,value from action_data where aid=?', {}, $aid) }) };
+}
+
+sub db_list_actions () {
+  return $DB->selectcol_arrayref('select distinct aid from action_data');
 }
 
 
@@ -676,6 +680,38 @@ sub get_action_detail ($$$) {
   return $res->content;
 }
 
+sub action_summary($;$) {
+  my($a, $extra) = @_;
+
+  my $text = sprintf("#%3d %-5s %8s %-7s %-15s",
+    $$a{act_number}, $$a{_date}, $$a{_time}, $$a{act_type},
+    $extra ? $$a{_entries_brief} :
+    ($$a{_entries_summary} || $$a{_entries_brief}));
+  $text .= " $$a{_session}  $$a{act_tech_penalty}" if $extra;
+  $text =~ s/\s*$//;
+  return $text . "\n"
+}
+
+sub action_report($) {
+  my($a) = @_;
+
+  return action_summary($a) . "  $$a{_short_desc}\n";
+}
+
+sub action_detail($) {
+  my($a) = @_;
+
+  my $report = sprintf("  CS:%-3s   SOM:%-3s   COA:%-3s   HOLD:%-3s   REMOVE:%s\n",
+    $$a{CsAcked}, $$a{SomComplete}, $$a{CoaComplete}, $$a{HoldResults},
+    $$a{act_delete_flag} ? "YES" : "NO");
+
+  $report .= "  $$a{_session}\n";
+  $report .= "  $$a{act_tech_penalty}\n" if $$a{act_tech_penalty};
+  $report .= "  per $$a{_auth} ($$a{act_gcr_section})\n";
+  $report =~ s/per  \(/\(/;
+  $report =~ s/\n\s+\(\)\n\Z/\n/;
+  return $report;
+}
 
 sub print_report ($$) {
   my($template, $fields) = @_;
@@ -745,6 +781,7 @@ sub process_actions ($) {
     #$$a{_entries_full}  = [ map("#$$_[0] $$_[1] $$_[2]", @entries) ];
     my @_entries_full  = map("#$$_[0] $$_[1] $$_[2]", @entries);
     $$a{_entries_brief} = join(', ', map("#$$_[0] $$_[1]", @entries));
+    $$a{_entries_summary} = @entries > 1 ? $$a{_entries_brief} : $_entries_full[0];
 
     if (@entries) {
       foreach (@_entries_full) {
@@ -762,10 +799,7 @@ sub process_actions ($) {
     }
     $$a{__details__} =~ s/^\(\)/(Details)/;
 
-    $report = sprintf("#%3d %-5s %-5s %-7s %s\n  %s\n",
-      $$a{act_number}, $$a{_date}, $$a{_time}, $$a{act_type},
-      @entries > 1 ? $$a{_entries_brief} : $_entries_full[0],
-      $$a{_short_desc});
+    $report = action_report($a);
 
     if (!$UPDATE && (
         $$a{act_number} eq '' || !$$a{act_datetime} ||
@@ -781,15 +815,7 @@ sub process_actions ($) {
     print $report if $VERBOSE;
     $count++;
 
-    $report = sprintf("  CS:%-3s   SOM:%-3s   COA:%-3s   HOLD:%-3s   REMOVE:%s\n",
-      $$a{CsAcked}, $$a{SomComplete}, $$a{CoaComplete}, $$a{HoldResults},
-      $$a{act_delete_flag} ? "YES" : "NO");
-
-    $report .= "  $$a{_session}\n";
-    $report .= "  $$a{act_tech_penalty}\n" if $$a{act_tech_penalty};
-    $report .= "  per $$a{_auth} ($$a{act_gcr_section})\n";
-    $report =~ s/per  \(/\(/;
-    $report =~ s/\n\s+\(\)\n\Z/\n/;
+    $report = action_detail($a);
     $summary .= $report;
     print $report if $VERBOSE;
 
@@ -821,6 +847,23 @@ sub process_actions ($) {
     print $P ' ' x 25, "*** ACTION SUMMARY REPORT ***\n";
     print $P $summary;
     $P->close;
+  }
+}
+
+sub list_actions () {
+  my(@list);
+
+  if (@ARGV) {
+    @list = sort { $a <=> $b } (@ARGV);
+  } else {
+    my $list = db_list_actions();
+    return unless $list;
+    @list = sort { $a <=> $b } (@$list);
+  }
+
+  foreach my $a (map(db_fetch_action($_), @list)) {
+    print action_summary($a, !$VERBOSE);
+    print action_detail($a), "\n" if $VERBOSE;
   }
 }
 
@@ -859,6 +902,8 @@ $UA->show_progress(1);
 db_open();
 if ($UPDATE) {
   process_actions(get_data());
+} elsif ($LIST) {
+  list_actions();
 } elsif ($GETONLY) {
   print get_data();
 } elsif (@ARGV) {
