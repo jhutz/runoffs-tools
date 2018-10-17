@@ -1437,6 +1437,12 @@ def show_change_results(recs):
         if (Options.pending and data['appliedA'] and data['appliedB'] and
                 data['appliedC'] and data['appliedR']):
             continue
+        if Options.pending_A or Options.pending_B or Options.pending_C or Options.pending_R:
+            if not (Options.pending_A and not data['appliedA'] or
+                    Options.pending_B and not data['appliedB'] or
+                    Options.pending_C and not data['appliedC'] or
+                    Options.pending_R and not data['appliedR']):
+                continue
         if Options.new and data['printed']:
             continue
         if (Options.filter and not
@@ -1645,6 +1651,10 @@ def process_args():
     p.add_argument('-i', '--irrelevant', action='store_true', help='Also show irrelevant changes')
     p.add_argument('-n', '--new', action='store_true', help='Only show new changes')
     p.add_argument('-p', '--pending', action='store_true', help='Only show pending changes')
+    p.add_argument('-A', '--pending-A', action='store_true', help='Show changes pending for A')
+    p.add_argument('-B', '--pending-B', action='store_true', help='Show changes pending for B')
+    p.add_argument('-C', '--pending-C', action='store_true', help='Show changes pending for C')
+    p.add_argument('-R', '--pending-R', action='store_true', help='Show changes pending for D')
     p.add_argument('-f', '--filter', action='append', help='Filter field:pattern',
             type=lambda s: (lambda f: (f[0], re.compile(f[1]))) (s.split(':', 1)+['']))
     p.add_argument('-v', '--verbose', action='count', help='Show changed fields (-vv for irrelevant ones)')
