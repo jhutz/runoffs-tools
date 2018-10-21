@@ -1,7 +1,7 @@
 #!/bin/sh
 # usage: lchart <group> <passings>
 
-basedir=$(dirname $(realpath $0))/..
+basedir=$HOME/runoffs
 chartdir=${basedir}/Results/Charts
 workdir=${basedir}/Working
 
@@ -20,5 +20,5 @@ day=$(date -d$date +'%A, %B %-d, %Y')
 
 chartroom -C "$2" "$chartdir/$gfile.crx" group="$group" date="$day" time="$time"
 chartroom -P "$chartdir/$gfile.crx" /tmp/chart/$gfile.ps
-ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs2017 Race Lapchart.pdf"
+ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs2018 Race Lapchart.pdf"
 chartroom "$chartdir/$gfile.crx" &
