@@ -1390,7 +1390,10 @@ def do_update():
 def show_change_results(recs):
     if Options.sort:
         recs = sorted(recs, key=lambda r:
-                (r['class'], int(r['car']), r['car'].startswith('0'), r['xid']))
+                (str(r['class']),
+                 int(r['car']) if re.match('^\d+$', str(r['car'])) else 0,
+                 str(r['car']).startswith('0'),
+                 r['xid']))
     else:
         recs = sorted(recs, key=lambda r: r['xid'])
     if Options.dump:
