@@ -105,7 +105,7 @@ sub v_numeric ($$) {
 sub v_upper ($$) {
   my($field, $value) = @_;
   if ($value =~ /[a-z]/) {
-    problem("Non-uppercase $field ($value)") if $VERBOSE;
+    problem('*', "Non-uppercase $field ($value)") if $VERBOSE;
     $value =~ tr/a-z/A-Z/;
   }
   $value;
@@ -164,21 +164,21 @@ sub v_lname ($$) { v_namecaps($_[0], $_[1], 1) }
 sub v_comma ($$) {
   my($field, $value) = @_;
   if ($value =~ s#,#/#g) {
-    problem("$field: change commas to slashes") if $VERBOSE;
+    problem('*', "$field: change commas to slashes") if $VERBOSE;
   }
   $value;
 }
 
 sub v_slash ($$) {
   my($field, $value) = @_;
-  $value =~ s{\s*/\s*}{/};
+  $value =~ s{\s*/\s*}{/}g;
   $value;
 }
 
 sub v_year ($$) {
   my($field, $value) = @_;
   if ($value eq '0') {
-    problem("$field is 0") if $VERBOSE;
+    problem('*', "$field is 0") if $VERBOSE;
     $value = '';
   }
   #$value = v_nonblank($field, $value, 1) if $YearClasses{$class};
@@ -236,7 +236,7 @@ sub v_txno ($$) {
 sub v_bspec ($$) {
   my($field, $value) = @_;
   if ($value =~ s/^(bs|bspec|b-spec)$/B-Spec/i && $value ne 'B-Spec') {
-    problem("$field B-Spec misspelled as $value") if $VERBOSE;
+    problem('*', "$field B-Spec misspelled as $value") if $VERBOSE;
   }
   $value;
 }
@@ -244,7 +244,7 @@ sub v_bspec ($$) {
 sub v_fixed_mm ($$$) {
   my($field, $value, $ix) = @_;
   if (exists($FixedMM{$class}) && $value ne $FixedMM{$class}[$ix]) {
-    problem("Incorrect $field ($value) for class $class") if $VERBOSE;
+    problem('*', "Incorrect $field ($value) for class $class") if $VERBOSE;
     $value = $FixedMM{$class}[$ix];
   }
   $value;
@@ -347,8 +347,8 @@ while (<>) {
 
   # Generic format checks
   foreach (0 .. @Cols - 1) {
-    problem($Cols[$_], ' contains a comma') if $fields[$_] =~ s/,//g && $VERBOSE;
-    problem($Cols[$_], ' contains a quote') if $fields[$_] =~ s/"//g && $VERBOSE;
+    problem('*', $Cols[$_], ' contains a comma') if $fields[$_] =~ s/,//g && $VERBOSE;
+    problem('*', $Cols[$_], ' contains a quote') if $fields[$_] =~ s/"//g && $VERBOSE;
   }
 
   if ($OUT) {
