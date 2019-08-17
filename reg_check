@@ -24,7 +24,7 @@ use vars qw($format $carno $class $name);
   FE2  => [ 'SCCA', 'Mazda FE2' ],
   FM   => [ 'Star',  'Formula Mazda' ],
   SM   => [ 'Mazda', 'Miata' ],
-  SRF3 => [ 'SCCA',  'Spec Racer Ford 3' ],
+  SRF3 => [ 'SCCA',  'Spec Racer Ford Gen 3' ],
 );
 
 ## Columns we have special interest in
