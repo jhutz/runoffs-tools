@@ -1021,8 +1021,7 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
     for data in recs:
         if Options.custom_fields and not fromdb:
             msr_add_member_info(data, cache=mem_cache)
-            msr_add_attendee_info(data, cache=att_cache)
-        elif Options.event_questions and not fromdb:
+        if not fromdb:
             msr_add_attendee_info(data, cache=att_cache)
         if Options.custom_fields:
             build_custom_fields(data)
@@ -1059,9 +1058,7 @@ def do_assigns():
         recs = msr_get_assign_list(cleanup=not Options.dump)
         if Options.custom_fields or Options.csv or Options.tsv or Options.csv_format:
             mem_cache = msr_get_member_dict(cleanup=not Options.dump)
-            att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
-        elif Options.event_questions:
-            att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
+        att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
     show_assign_results(recs, att_cache, mem_cache)
 
 
