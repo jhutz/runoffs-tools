@@ -304,6 +304,7 @@ parse_args;
   @Cols = split(/\t/, $_);
   my %fields = map(($Cols[$_] => $_), 0 .. @Cols-1);
   foreach (keys %ColNames) {
+    next unless exists $fields{$ColNames{$_}};
     $Cols{$_} = $fields{$ColNames{$_}};
   }
   if ($OUT) {
@@ -327,6 +328,7 @@ while (<>) {
 
   # Data validation/repair
   foreach my $field (sort keys %Validate) {
+    next unless exists $Cols{$field};
     my $value = $fields[$Cols{$field}];
     foreach my $cb (@{$Validate{$field}}) {
       $value = $cb->($ColNames{$field}, $value);
