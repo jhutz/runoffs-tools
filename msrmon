@@ -38,6 +38,28 @@ config_defaults = {
     'csvVehicleQuestions' : [],
 }
 config_default_csv = [
+    { 'segment'        : 'Segment' },
+    { 'groupShort'     : 'Group' },
+    { 'classShort'     : 'Class' },
+    { 'vehicleNumber'  : 'Car #' },
+    { 'firstName'      : 'First Name' },
+    { 'lastName'       : 'Last Name' },
+    { '_homeTown'      : 'Hometown' },
+    { '_MM'            : 'Make/Model' },
+    { 'transponder'    : 'Transponder' },
+    { 'sponsor'        : 'Sponsor' },
+    { 'memberId'       : 'Member #' },
+    { '_RoR'           : 'Region' },
+    { 'color'          : 'Color' },
+    { 'registered'     : 'Reg Date' },
+    { 'city'           : 'City' },
+    { 'region'         : 'State' },
+    { 'make'           : 'Make' },
+    { 'model'          : 'Model' },
+    { 'email'          : 'Email' },
+    { 'year'           : 'Year' },
+]
+config_msr_csv = [
     { 'segment'        : 'Segment Name' },
     { 'vehicleNumber'  : 'No.' },
     { 'classShort'     : 'Class' },
@@ -193,6 +215,8 @@ def load_config():
         Config['timezone'] = tz.gettz(Config['timezone'])
     if 'default' not in Config['csvFormats']:
         Config['csvFormats']['default'] = config_default_csv
+    if 'msr' not in Config['csvFormats']:
+        Config['csvFormats']['msr'] = config_msr_csv
     for key in config_paths:
         if key not in Config: continue
         Config[key] = os.path.normpath(os.path.join(
