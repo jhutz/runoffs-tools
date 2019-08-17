@@ -268,8 +268,8 @@ sub v_fixed_model ($$) { v_fixed_mm($_[0], $_[1], 1) }
   class    => [ \&v_nonblank,  \&v_bspec,     ],
   color    => [ \&v_nonblank,  \&v_comma,     ],
   sponsor  => [ \&v_comma,     \&v_slash,     ],
-  make     => [ \&v_nonblank,  \&v_namecaps,  \&v_fixed_make  ],
-  model    => [ \&v_nonblank,  \&v_namecaps,  \&v_fixed_model ],
+  make     => [ \&v_fixed_make,  \&v_nonblank,  \&v_namecaps,  ],
+  model    => [ \&v_fixed_model, \&v_nonblank,  \&v_namecaps,  ],
   engine   => [ \&v_nb_engine, \&v_namecaps,  ],
 );
 
