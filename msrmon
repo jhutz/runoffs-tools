@@ -906,7 +906,7 @@ def do_attendees():
         data['_homeTown'] = ' '.join((str(data['city']),      str(data['region'])),)
         data['registered/date'] = reg.astimezone(Options.timezone).strftime('%Y-%m-%d')
         data['lastUpdate/date'] = upd.astimezone(Options.timezone).strftime('%Y-%m-%d')
-        if not raw_dates:
+        if not Options.raw_dates:
             data['registered'] = format_ts(reg)
             data['lastUpdate'] = format_ts(upd)
 
