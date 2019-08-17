@@ -1197,7 +1197,7 @@ def do_update():
 
         # Prefetch some related data from MSR
         if asn_cache:
-            asn = asn_cache[change['uidAssignment']]
+            asn = asn_cache.get(change['uidAssignment'])
         else:
             asn = msr_get_assign(change['uidAssignment'])
         if att_cache:
