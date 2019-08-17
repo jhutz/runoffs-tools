@@ -72,6 +72,14 @@ foreach my $patch (@ARGV) {
       print STDERR "$key: $col is not '$$hr{old}'\n";
     } else {
       $$data{$key}{$col} = $$hr{new};
+      # KLUDGE - update composite Make/Model and Hometown columns
+      # found in the standard csv download format
+      if (($col eq 'Make' || $col eq 'Model') && exists $$data{$key}{'Make/Model'}) {
+        $$data{$key}{'Make/Model'} = "$$data{$key}{Make} $$data{$key}{Model}";
+      }
+      if (($col eq 'City' || $col eq 'State') && exists $$data{$key}{'Hometown'}) {
+        $$data{$key}{'Hometown'} = "$$data{$key}{City} $$data{$key}{State}";
+      }
     }
   }
   $IN->error_diag();
