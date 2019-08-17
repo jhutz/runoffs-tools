@@ -194,6 +194,7 @@ def load_config():
     if 'default' not in Config['csvFormats']:
         Config['csvFormats']['default'] = config_default_csv
     for key in config_paths:
+        if key not in Config: continue
         Config[key] = os.path.normpath(os.path.join(
             os.path.dirname(os.path.realpath(Options.config)),
             os.path.expandvars(os.path.expanduser(Config[key]))
