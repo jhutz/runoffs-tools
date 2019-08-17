@@ -1476,45 +1476,53 @@ def show_change_results(recs):
             continue
         print(fmt.format(**data).rstrip())
         if data['action'] == 'UPD':
+            prextra = False
             if Options.verbose:
                 for field in sorted(data['affectedColumns']):
                     if Options.verbose < 2 and field != 'dateRegistered' and (
                             msr_change_field_names.get(field, field) is None or
                             msr_change_field_names.get(field, field) in Config['irrelevantFields']):
                         continue
+                    prextra = True
                     print(ufmt.format(field=msr_change_field_names.get(field, field) or field,
                         old=data['old'][field], new=data['new'][field]).rstrip())
             if Options.event_questions:
                 for q in sorted(data['questions'], key=lambda q: q['header']):
+                    prextra = True
                     print(ufmt.format(field=q['header'],
                         old=q['old_answer'], new=q['new_answer']
                         ).rstrip())
             if Options.vehicle_questions:
                 for q in sorted(data['vehicle_questions'], key=lambda q: q['header']):
+                    prextra = True
                     print(ufmt.format(field=q['header'],
                         old=q['old_answer'], new=q['new_answer']
                         ).rstrip())
-            print()
+            if prextra: print()
         elif data['action'] != 'DROP':
+            prextra = False
             if Options.verbose:
                 for field in sorted(data['affectedColumns']):
                     if Options.verbose < 2 and field != 'dateRegistered' and (
                             msr_change_field_names.get(field, field) is None or
                             msr_change_field_names.get(field, field) in Config['irrelevantFields']):
                         continue
+                    prextra = True
                     print(nfmt.format(field=msr_change_field_names.get(field, field) or field,
                         old=data['old'][field], new=data['new'][field]).rstrip())
             if Options.event_questions:
                 for q in sorted(data['questions'], key=lambda q: q['header']):
+                    prextra = True
                     print(nfmt.format(field=q['header'],
                         old=q['old_answer'], new=q['new_answer']
                         ).rstrip())
             if Options.vehicle_questions:
                 for q in sorted(data['vehicle_questions'], key=lambda q: q['header']):
+                    prextra = True
                     print(nfmt.format(field=q['header'],
                         old=q['old_answer'], new=q['new_answer']
                         ).rstrip())
-            print()
+            if prextra: print()
 
 
 def do_flag():
