@@ -894,6 +894,7 @@ def do_members():
 
     if Options.dump:
         dumpobj(recs)
+        return
     print("Human-readable member list not implemented\n")
 
 def do_attendees():
