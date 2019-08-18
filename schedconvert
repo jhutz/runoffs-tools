@@ -4,7 +4,9 @@ use Getopt::Std;
 use IO::File;
 use POSIX ();
 use Time::Local;
+use feature 'unicode_strings';
 use strict;
+use open qw(:utf8);
 
 our %Opts;
 our $Practice   = undef; # Date of all practice sessions
@@ -106,7 +108,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
   while (@all_lines) {
     $_ = shift(@all_lines);
     s#\s*([,/]+)\s*#$1#g;
-    if (/^\s*NATIONAL CHAMPIONSHIP RACES/i) {
+    if (/^\s*NATIONAL\s+CHAMPIONSHIP\s+RACES/i) {
       $mode = 'R';
       @days = ();
       print STDERR "BEGIN RACE SECTION\n" if $Opts{'d'};
@@ -220,7 +222,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
         # Kludge!  Fix up class names
         my @cc = split(m#[/,]+#, $_);
         map(s/\*$//, @cc);
-        map(s/^(bs|bspec|b-spec)$/B-Spec/i, @cc);
+        map(s/^(bs|bspec|b\p{Dash}spec)$/B-Spec/i, @cc);
         map(s/^(f5|f500)$/F5/i, @cc);
         push(@classes, @cc);
         push(@sets, join('/', sort @cc));
