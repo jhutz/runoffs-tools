@@ -69,12 +69,13 @@ sub unix2excel ($) {
   return ($local + 2208988800 + 86400 + 86400) / 86400;
 }
 
-getopts('2hs:x:z:Q:R:', \%Opts);
+getopts('2dhs:x:z:Q:R:', \%Opts);
 if ($Opts{'h'}) {
   print <<'EOF';
 usage: schedconvert [opts] < input
        schedconvert -h
 
+  -d        Enable debugging
   -h        Print help message
   -2        Emit "seamless" sessions as two Orbits runs
   -s PATH   Output CSV schedule table in PATH (default schedule.csv)
@@ -108,13 +109,17 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
     if (/^\s*NATIONAL CHAMPIONSHIP RACES/i) {
       $mode = 'R';
       @days = ();
+      print STDERR "BEGIN RACE SECTION\n" if $Opts{'d'};
     }
     if (/\b(\d+)\s+LAPS?\b/) {
       $RaceLaps = $1 if $mode eq 'R' && !defined($RaceLaps);
+      print STDERR "$RaceLaps LAPS\n" if $Opts{'d'};
     }
     if (/\b(\d+)\s+MIN\b/) {
       $QualTime = $1 if $mode eq 'Q' && !defined($QualTime);
       $RaceTime = $1 if $mode eq 'R' && !defined($RaceTime);
+      print STDERR "$QualTime MINUTES\n" if $Opts{'d'} && $mode eq 'Q';
+      print STDERR "$RaceTime MINUTES\n" if $Opts{'d'} && $mode eq 'R';
     }
 
     # Look to see if we're starting a new set of days
@@ -131,6 +136,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
         splice(@newdays, $Opts{'R'});
       }
       @days = @newdays;
+      print STDERR "DAYS: ", join(' ', @days), "\n" if $Opts{'d'};
       #if (!defined($Practice)) {
       #  $Practice = timelocal(0,0,0, $days[0][1]-1, $days[0][0]-1, $year);
       #}
@@ -152,6 +158,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
 
     next unless @days && s/^(\s*(\d+):(\d+))//;
     my ($prefix, $hh, $mm) = ($1, $2, $3);
+    print STDERR "FOUND $hh:$mm\n" if $Opts{'d'};
 
     # If there's another timestamp in the middle of the row,
     # chop it off and process it as a separate line after this one.
