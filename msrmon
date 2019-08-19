@@ -1043,7 +1043,8 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
 
     if Options.tsv:
         writer = csv.DictWriter(sys.stdout, fieldnames=fields,
-                extrasaction='ignore', quoting=csv.QUOTE_NONE, delimiter='\t')
+                extrasaction='ignore', quoting=csv.QUOTE_NONE,
+                delimiter='\t', quotechar=None)
     else:
         writer = csv.DictWriter(sys.stdout, fieldnames=fields,
                 extrasaction='ignore', quoting=csv.QUOTE_ALL)
