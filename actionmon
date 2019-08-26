@@ -485,7 +485,7 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('dfhlmruvxp:D:H:U:P:', \%opts) or usage("Invalid option!");
+  getopts('adfhlmruvxp:D:H:U:P:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
   $DEBUG++   if $opts{d};
   $VERBOSE++ if $opts{v};
@@ -494,6 +494,7 @@ sub parse_args () {
   $MONITOR++ if $opts{m};
   $UPDATE++  if $opts{u};
   $LIST++    if $opts{l};
+  $LIST = 2  if $opts{a};
   $FORCE++   if $opts{f};
 
   $DBPath   = $opts{D} if defined $opts{D};
@@ -868,6 +869,21 @@ sub list_actions () {
 }
 
 
+sub print_actions () {
+  die "Please list action(s) to print\n" unless @ARGV;
+  my @list = sort { $a <=> $b } (@ARGV);
+
+  foreach my $a (map(db_fetch_action($_), @list)) {
+    if ($Printer) {
+      print_report($Template, $a);
+    } else {
+      print action_summary($a, 0);
+      print action_detail($a), "\n";
+    }
+  }
+}
+
+
 sub get_data () {
   my $req = new HTTP::Request(GET => $ListURL);
   my $res = $UA->request($req);
@@ -902,6 +918,8 @@ $UA->show_progress(1);
 db_open();
 if ($UPDATE) {
   process_actions(get_data());
+} elsif ($LIST > 1) {
+  print_actions();
 } elsif ($LIST) {
   list_actions();
 } elsif ($GETONLY) {
