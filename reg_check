@@ -262,12 +262,22 @@ sub v_fixed_model ($$$) { v_fixed_mm($_[0], $_[1], $_[2], 1) }
 sub v_miata ($$$) {
   my($field, $value, $fields) = @_;
   return $value if $$fields[$Cols{make}] ne 'Mazda';
-  return $value unless $value =~ /^\s*(mx-?5\s*)?(miata\s*)?$/;
+  ($_ = $value) =~ s/\s*//g;
+  return $value unless m#^(mx-?5(/?miata)?|miata)(mazdaspeed)?([0-9.]+L)?$#i;
 
   my $year = $$fields[$Cols{year}];
-  return 'Miata' if $year <= 2005;
-  return 'MX-5'  if $year <= 2015;
-  return 'MX-5 Miata';
+  if (!$year) {
+    problem("Missing year for Mazda Miata/MX-5");
+    return $value;
+  }
+  my $oldval = $value;
+  if    ($year <= 2005) { $value = 'Miata' }
+  elsif ($year <= 2015) { $value = 'MX-5'  }
+  else { $value = 'MX-5 Miata' }
+  if ($value ne $oldval) {
+    problem('*', "$field: $oldval should be $value") if $VERBOSE;
+  }
+  $value;
 }
 
 ## Validation functions for each field
