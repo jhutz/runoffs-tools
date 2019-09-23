@@ -89,21 +89,21 @@ sub problem {
   print "$x\n";
 }
 
-sub v_nonblank ($$;$) {
-  my($field, $value, $clsdep) = @_;
+sub v_nonblank ($$$;$) {
+  my($field, $value, $fields, $clsdep) = @_;
   $clsdep = $clsdep ? " for $class" : '';
   problem("Missing $field$clsdep") unless $value =~ /\S/;
   $value;
 }
 
-sub v_numeric ($$) {
-  my($field, $value) = @_;
+sub v_numeric ($$$) {
+  my($field, $value, $fields) = @_;
   problem("Non-numeric $field ($value)") if $value =~ /\D/;
   $value;
 }
 
-sub v_upper ($$) {
-  my($field, $value) = @_;
+sub v_upper ($$$) {
+  my($field, $value, $fields) = @_;
   if ($value =~ /[a-z]/) {
     problem('*', "Non-uppercase $field ($value)") if $VERBOSE;
     $value =~ tr/a-z/A-Z/;
@@ -123,8 +123,8 @@ sub v_upper ($$) {
   wf1           => 'WF1',
   'nissan/datsun' => 'Datsun',
 );
-sub v_namecaps ($$;$) {
-  my($field, $value, $lname) = @_;
+sub v_namecaps ($$$;$) {
+  my($field, $value, $fields, $lname) = @_;
   my @words = split(/([^A-Za-z0-9]+)/, $value);
   my($newvalue, $problems);
 
@@ -159,43 +159,43 @@ sub v_namecaps ($$;$) {
   problem("$field bad case ($value)") if $problems && !$QUIET;
   $newvalue;
 }
-sub v_lname ($$) { v_namecaps($_[0], $_[1], 1) }
+sub v_lname ($$$) { v_namecaps($_[0], $_[1], $_[2], 1) }
 
-sub v_comma ($$) {
-  my($field, $value) = @_;
+sub v_comma ($$$) {
+  my($field, $value, $fields) = @_;
   if ($value =~ s#,#/#g) {
     problem('*', "$field: change commas to slashes") if $VERBOSE;
   }
   $value;
 }
 
-sub v_slash ($$) {
-  my($field, $value) = @_;
+sub v_slash ($$$) {
+  my($field, $value, $fields) = @_;
   $value =~ s{\s*/\s*}{/}g;
   $value;
 }
 
-sub v_year ($$) {
-  my($field, $value) = @_;
+sub v_year ($$$) {
+  my($field, $value, $fields) = @_;
   if ($value eq '0') {
     problem('*', "$field is 0") if $VERBOSE;
     $value = '';
   }
-  #$value = v_nonblank($field, $value, 1) if $YearClasses{$class};
+  #$value = v_nonblank($field, $value, $fields, 1) if $YearClasses{$class};
   $value;
 }
 
-sub v_nb_engine ($$) {
-  my($field, $value) = @_;
+sub v_nb_engine ($$$) {
+  my($field, $value, $fields) = @_;
   if ($EngineClasses{$class}) {
-    v_nonblank($field, $value, 1);
+    v_nonblank($field, $value, $fields, 1);
   } else {
     '';
   }
 }
 
-sub v_email ($$) {
-  my($field, $value) = @_;
+sub v_email ($$$) {
+  my($field, $value, $fields) = @_;
   my($hostname, @labels);
 
   if ($value =~ /\@([A-Z0-9.-]+)$/i) {
@@ -209,20 +209,20 @@ sub v_email ($$) {
   $value;
 }
 
-sub v_carno ($$) {
-  my($field, $value) = @_;
+sub v_carno ($$$) {
+  my($field, $value, $fields) = @_;
   problem("Invalid $field: $value") unless $value =~ /^(1?[0-9])?[0-9]$/;
   $value;
 }
 
-sub v_memberid ($$) {
-  my($field, $value) = @_;
+sub v_memberid ($$$) {
+  my($field, $value, $fields) = @_;
   problem("Strange member ID: $value") if $value =~ /[^0-9_]/;
   $value;
 }
 
-sub v_txno ($$) {
-  my($field, $value) = @_;
+sub v_txno ($$$) {
+  my($field, $value, $fields) = @_;
   $value =~ s/^0*//;
 
   if ($value < 100 || ($value >= 10000 && $value < 11000)
@@ -233,16 +233,16 @@ sub v_txno ($$) {
   $value;
 }
 
-sub v_bspec ($$) {
-  my($field, $value) = @_;
+sub v_bspec ($$$) {
+  my($field, $value, $fields) = @_;
   if ($value =~ s/^(bs|bspec|b-spec)$/B-Spec/i && $value ne 'B-Spec') {
     problem('*', "$field B-Spec misspelled as $value") if $VERBOSE;
   }
   $value;
 }
 
-sub v_fixed_mm ($$$) {
-  my($field, $value, $ix) = @_;
+sub v_fixed_mm ($$$$) {
+  my($field, $value, $fields, $ix) = @_;
   if (exists($FixedMM{$class}) && $value ne $FixedMM{$class}[$ix]) {
     problem('*', "Incorrect $field ($value) for class $class") if $VERBOSE;
     $value = $FixedMM{$class}[$ix];
@@ -250,8 +250,8 @@ sub v_fixed_mm ($$$) {
   $value;
 }
 
-sub v_fixed_make  ($$) { v_fixed_mm($_[0], $_[1], 0) }
-sub v_fixed_model ($$) { v_fixed_mm($_[0], $_[1], 1) }
+sub v_fixed_make  ($$$) { v_fixed_mm($_[0], $_[1], $_[2], 0) }
+sub v_fixed_model ($$$) { v_fixed_mm($_[0], $_[1], $_[2], 1) }
 
 ## Validation functions for each field
 ## RHS is a list of validation functions
@@ -331,7 +331,7 @@ while (<>) {
     next unless exists $Cols{$field};
     my $value = $fields[$Cols{$field}];
     foreach my $cb (@{$Validate{$field}}) {
-      $value = $cb->($ColNames{$field}, $value);
+      $value = $cb->($ColNames{$field}, $value, \@fields);
     }
     $fields[$Cols{$field}] = $value;
   }
