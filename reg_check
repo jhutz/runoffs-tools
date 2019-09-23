@@ -116,12 +116,18 @@ sub v_upper ($$$) {
   deimen        => 'Diemen',
   is            => 'is',
   mazdaspeed    => 'MazdaSpeed',
+  rx3           => 'RX-3',
+  'rx-3'        => 'RX-3',
+  rx7           => 'RX-7',
+  'rx-7'        => 'RX-7',
+  rx8           => 'RX-8',
+  'rx-8'        => 'RX-8',
   spece46       => 'SpecE46',
   sthor         => 'Stohr',
   vandeimen     => 'Van Diemen',
   vandiemen     => 'Van Diemen',
   wf1           => 'WF1',
-  'nissan/datsun' => 'Datsun',
+  'nissan/datsun' => 'Nissan',
 );
 sub v_namecaps ($$$;$) {
   my($field, $value, $fields, $lname) = @_;
