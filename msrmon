@@ -1457,7 +1457,8 @@ def do_update():
                 old_rec['status'] = change['new']['attendeeStatus']
                 change['questions'] = []
                 change['vehicle_questions'] = []
-                db_store_assign(old_rec)
+                if 'id' in old_rec:
+                    db_store_assign(old_rec)
 
             else:
                 sys.stderr.write('WARNING: ignoring change %s %s\n'
