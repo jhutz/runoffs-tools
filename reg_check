@@ -127,7 +127,6 @@ sub v_upper ($$$) {
   vandeimen     => 'Van Diemen',
   vandiemen     => 'Van Diemen',
   wf1           => 'WF1',
-  'nissan/datsun' => 'Nissan',
 );
 sub v_namecaps ($$$;$) {
   my($field, $value, $fields, $lname) = @_;
@@ -137,6 +136,13 @@ sub v_namecaps ($$$;$) {
   if ($value =~ /[^ -~]/) {
     problem("Non-ASCII $field ($value)") unless $QUIET;
     return $value;
+  }
+
+  if ($value =~ m#^nissan/datsun#i) {
+    # Special case -- / is a word separator, so we can't handle this
+    # using the generic spelling/case correction below.
+    problem("$field bad make $value\n") unless $QUIET;
+    return 'Nissan';
   }
 
   while (@words) {
