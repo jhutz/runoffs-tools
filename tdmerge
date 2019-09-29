@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+
+use Text::CSV;
+
+my @Days = qw(Thu Fri Sat Sun Mon);
+my %Days = map(($Days[$_] => 1+$_), 0..$#Days);
+
+my $IN = Text::CSV->new( {
+    sep_char => "\t", quote_char => undef, escape_char => undef, binary => 1,
+  });
+$IN->column_names($IN->getline(\*STDIN));
+
+while ($hr = $IN->getline_hr(\*STDIN)) {
+  $key = join('_', $$hr{'Class'}, $$hr{'Member #'});
+  $day = substr($$hr{'Test Day Segment'}, 0, 3);
+  $Entries{$key}{$day} = $Days{$day} || 99;
+}
+
+my $OUT = Text::CSV->new( {
+    quote_space => 1, binary => 1, eol => "\r\n",
+  });
+$OUT->print(\*STDOUT, [qw[Cls_Member Days]]);
+foreach my $entry (sort keys %Entries) {
+  $OUT->print(\*STDOUT, [
+      $entry,
+      join(' ', sort {
+        $Entries{$entry}{$a} <=> $Entries{$entry}{$b}
+        || $a cmp $b
+        } keys %{$Entries{$entry}})
+    ]);
+}
