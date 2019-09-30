@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+# feed me the 'cfCheck' TSV format, with at least these columns:
+# Class, No., Name, Member #, Color, Runoffs Color
+
+use Text::CSV;
+
+my @StdColors = (qw(Aqua Black Blue Brown Cream Gold Gray Green), 'Lt Blue',
+  qw(Magenta Maroon Orange Pewter Pink Purple),
+  qw(Red Silver Teal Turquoise Violet White Yellow));
+my %Order = map(($StdColors[$_] => 1+$_), 0..$#StdColors);
+my %ColorMap = (map((lc($_) => $_), @StdColors),
+  blk   => 'Black',
+  blu   => 'Blue',
+  brg   => 'Green',
+  grey  => 'Gray',
+  navy  => 'Blue',
+  oran  => 'Orange',
+  wht   => 'White',
+  yel   => 'Yellow',
+  yello => 'Yellow',
+
+  'diamond black'       => 'Black',
+  'lemans blue'         => 'Blue',
+  'dark gray'           => 'Gray',
+  'dark grey'           => 'Gray',
+  'metallic green'      => 'Green',
+  'candy red'           => 'Red',
+  'garnet'              => 'Red',
+  'sheetz red'          => 'Red',
+  'neon yell'           => 'Yellow',
+);
+
+my $IN = Text::CSV->new( {
+    sep_char => "\t", quote_char => undef, escape_char => undef, binary => 1,
+  });
+$IN->column_names($IN->getline(\*STDIN));
+
+my $OUT = new Text::CSV( { binary => 1, eol => "\n" });
+$OUT->print(\*STDOUT, [qw[key field old new]]);
+
+
+LINE: while ($hr = $IN->getline_hr(\*STDIN)) {
+  next if $$hr{'Runoffs Color'} ne '';
+  my @words = split(/\s+(?:and|on)\s+|[\s\/\\,&]+/, lc($$hr{'Color'}));
+  my @newcols;
+
+  while (@words) {
+    my $color = shift @words;
+    if ($ColorMap{$color}) {
+      push(@newcols, $ColorMap{$color});
+      next;
+    }
+    $color .= " $words[0]";
+    if ($ColorMap{$color}) {
+      push(@newcols, $ColorMap{$color});
+      shift @words;
+      next;
+    }
+    printf STDERR ("%-6s %3s %-9s %-30s %s\n",
+      @$hr{'Class','No.','Member #','Name','Color'});
+    next LINE;
+  }
+
+  $OUT->print(\*STDOUT, [
+    join('_', $$hr{'Class'}, $$hr{'Member #'}), 'Color', '',
+    join('/', sort { $Order{$a} <=> $Order{$b} } @newcols),
+    $$hr{'Color'}
+  ]);
+}
