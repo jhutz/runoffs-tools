@@ -1802,7 +1802,9 @@ def process_args():
     if getattr(Options, 'questions', False) and hasattr(Options, 'vehicle_questions'):
         Options.vehicle_questions = True
 
-
-    Options._func(*getattr(Options, '_args', ()))
+    try:
+        Options._func(*getattr(Options, '_args', ()))
+    except BrokenPipeError: pass
+    except _: raise
 
 process_args()
