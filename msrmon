@@ -1805,6 +1805,6 @@ def process_args():
     try:
         Options._func(*getattr(Options, '_args', ()))
     except BrokenPipeError: pass
-    except _: raise
+    except Exception: raise
 
 process_args()
