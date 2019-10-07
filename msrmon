@@ -1299,6 +1299,14 @@ def do_update():
         with DB:
             if change['action'] == 'NEW':
                 ### New or reinstatement
+                if asn is None:
+                    sys.stderr.write('WARNING: ignoring change %s\n' % change['uid'])
+                    sys.stderr.write('adding stillborn assignment %s\n' % change['uidAssignment'])
+                    if Options.debug:
+                        pprint.pprint(change, stream=sys.stderr)
+                        sys.stderr.write('\n')
+                    continue
+
                 # Generate metadata for this change
                 change['isRelevant']  = True
                 change['isCarChange'] = False
