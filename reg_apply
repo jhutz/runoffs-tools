@@ -39,7 +39,8 @@ sub load_csv () {
       quote_binary => 0,
       ($head =~ /\t/) ? (
         sep_char    => "\t",
-        quote_char  => undef,
+        quote_char  => ($head =~ /"/ ? '"' : undef),
+        always_quote => ($head =~ /^"/ ? 1 : 0),
         escape_char => undef,
       ) : ()
     });
