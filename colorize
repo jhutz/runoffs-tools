@@ -43,6 +43,9 @@ LINE: while ($hr = $IN->getline_hr(\*STDIN)) {
   next if $$hr{'Runoffs Color'} ne '';
   my @words = split(/\s+(?:and|on)\s+|[\s\/\\,&]+/, lc($$hr{'Color'}));
   my @newcols;
+  my $class = $$hr{'Class'};
+
+  $class =~ s/^(bs|bspec|b-spec)$/B-Spec/i;
 
   while (@words) {
     my $color = shift @words;
@@ -57,12 +60,12 @@ LINE: while ($hr = $IN->getline_hr(\*STDIN)) {
       next;
     }
     printf STDERR ("%-6s %3s %-9s %-30s %s\n",
-      @$hr{'Class','No.','Member #','Name','Color'});
+      $class, @$hr{'No.','Member #','Name','Color'});
     next LINE;
   }
 
   $OUT->print(\*STDOUT, [
-    join('_', $$hr{'Class'}, $$hr{'Member #'}), 'Color', '',
+    join('_', $class, $$hr{'Member #'}), 'Color', '',
     join('/', sort { $Order{$a} <=> $Order{$b} } @newcols),
     $$hr{'Color'}
   ]);

@@ -1,4 +1,6 @@
 #!/usr/bin/perl
+# feed me the 'testday' TSV format, with at least these columns:
+# Class, Member #, Test Day Segment
 
 use Text::CSV;
 
@@ -11,7 +13,10 @@ my $IN = Text::CSV->new( {
 $IN->column_names($IN->getline(\*STDIN));
 
 while ($hr = $IN->getline_hr(\*STDIN)) {
-  $key = join('_', $$hr{'Class'}, $$hr{'Member #'});
+  my $class = $$hr{'Class'};
+  $class =~ s/^(bs|bspec|b-spec)$/B-Spec/i;
+
+  $key = join('_', $class, $$hr{'Member #'});
   $day = substr($$hr{'Test Day Segment'}, 0, 3);
   $Entries{$key}{$day} = $Days{$day} || 99;
 }
