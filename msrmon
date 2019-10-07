@@ -1498,7 +1498,7 @@ def show_change_results(recs):
     else:
         fmt = '{xid:>4} {_lts:%m/%d %H:%M} {_cc:3} {_done:4} {action:4} {class!s:6.6} {car!s:>3} {driver!s:25}'
     nfmt = '     {field:20} {new!s:40}'
-    ufmt = '     {field:20} {old!s:40} {new!s:40}'
+    ufmt = '     {field:20} {old!s:40} => {new!s:40}'
 
     col_headers = {
             'uid'       : 'Change UID',
