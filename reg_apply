@@ -9,8 +9,10 @@ our @KeyCols = ('Class', 'Member #');
 sub usage {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
-usage: reg_apply [patch...]
+usage: reg_apply [-n | -k key] [patch...]
        reg_apply -h
+  -n  Use class+no instead of class+memberID as key
+  -k  Use specified fields as keys (comma-separated)
   -h  This help message
 EOF
   exit !!@_;
@@ -19,8 +21,14 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('h', \%opts) or usage("Invalid option!");
+  getopts('hk:n', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
+  die "Cannot use -k and -n together\n" if $opts{k} && $opts{n};
+  if ($opts{n}) {
+    @KeyCols = ('Class','Car #');
+  } elsif ($opts{k}) {
+    @KeyCols = split(/,/, $opts{k});
+  }
 }
 
 sub load_csv () {
