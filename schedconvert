@@ -21,7 +21,7 @@ our $QualTime;
 our $RaceTime;
 our $RaceLaps;
 
-our $QualTimeAM = 18;
+our $QualTimeAM = 20;
 our $QualTimePM;
 
 our %Categories = (
@@ -226,7 +226,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
         map(s/^(bs|bspec|b\p{Dash}spec)$/B-Spec/i, @cc);
         map(s/^(f5|f500)$/F5/i, @cc);
         push(@classes, @cc);
-        push(@sets, join('/', sort @cc));
+        push(@sets, join('/', @cc));
       }
       $group = join(' // ', @sets);
 
