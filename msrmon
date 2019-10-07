@@ -501,7 +501,7 @@ def db_find_assign(fields):
             + " where "
             + " and ".join("`a_{0}`.field = '{0}' and `a_{0}`.value = :{0}".format(x)
                 for x in fields.keys()), fields)
-    return [ row['aid'] for row in c ]
+    return [ row['uid'] for row in c ]
 
 def db_fetch_all_assigns():
     return [ db_fetch_assign(item[0])
