@@ -5,6 +5,7 @@ use IO::File;
 use Text::CSV;
 use strict;
 
+our $VERBOSE;
 our @KeyCols = ('Class', 'Member #');
 sub usage {
   print STDERR @_, "\n" if @_;
@@ -14,6 +15,7 @@ usage: reg_apply [-n | -k key] [patch...]
   -n  Use class+no instead of class+memberID as key
   -k  Use specified fields as keys (comma-separated)
   -h  This help message
+  -v  Verbose diagnostics
 EOF
   exit !!@_;
 }
@@ -21,8 +23,9 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('hk:n', \%opts) or usage("Invalid option!");
+  getopts('hk:nv', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
+  $VERBOSE++ if $opts{v};
   die "Cannot use -k and -n together\n" if $opts{k} && $opts{n};
   if ($opts{n}) {
     @KeyCols = ('Class','Car #');
@@ -78,7 +81,11 @@ foreach my $patch (@ARGV) {
     } elsif (!exists($$data{$key}{$col})) {
       print STDERR "$key: no column '$col'\n";
     } elsif ($$data{$key}{$col} ne $$hr{old}) {
-      print STDERR "$key: $col is not '$$hr{old}'\n";
+      if ($VERBOSE) {
+        print STDERR "$key: $col '$$data{$key}{$col}' is not '$$hr{old}' (=> $$hr{new})\n";
+      } else {
+        print STDERR "$key: $col is not '$$hr{old}'\n";
+      }
     } else {
       $$data{$key}{$col} = $$hr{new};
       # KLUDGE - update composite Make/Model and Hometown columns
