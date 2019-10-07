@@ -11,9 +11,7 @@ use Text::CSV;
   'Group Membership','E-mail 1 - Type','E-mail 1 - Value'
 );
 
-my $IN = Text::CSV->new( {
-    sep_char => "\t", quote_char => undef, escape_char => undef, binary => 1,
-  });
+my $IN = Text::CSV->new( { binary => 1 });
 $IN->column_names($IN->getline(\*STDIN));
 
 my $OUT = Text::CSV->new( {
@@ -25,19 +23,17 @@ $OUT->print(\*STDOUT, \@gcols);
 while ($hr = $IN->getline_hr(\*STDIN)) {
   #print STDERR Dumper($hr);
   $OUT->print_hr(\*STDOUT, {
-      'Name'             => join(' ', $$hr{'Vehicle #'}, $$hr{'Class'},
-        $$hr{'First Name'}, $$hr{'Last Name'}),
-      'Given Name'       => $$hr{'First Name'},
-      'Family Name'      => $$hr{'Last Name'},
+      'Name'             => join(' ', $$hr{'Car No.'}, $$hr{'Class'},
+        $$hr{'First'}, $$hr{'Last'}),
+      'Given Name'       => $$hr{'First'},
+      'Family Name'      => $$hr{'Last'},
       'Notes'            => join("\n",
-        'Member #' . $$hr{'Member ID'} . ' (' . $$hr{'Region of Record'} . ')',
-        join(' ', $$hr{'Vehicle #'}, $$hr{'Class'}),
-        join(' ', $$hr{'Official Color'}, $$hr{'Vehicle Year'},
-          $$hr{'Official Make'}, $$hr{'Official Model'},
-          '(' . $$hr{'Engine Make'} . ')'),
+        'Member #' . $$hr{'Member ID'} . ' (' . $$hr{'Reg Abbrev'} . ')',
+        join(' ', $$hr{'Car No.'}, $$hr{'Class'}),
+        join(' ', $$hr{'Color'}, $$hr{'Make/Model Only'}),
         'Transponder #' . $$hr{'Transponder'},
       ),
-      'Group Membership' => '* Runoffs2017',
+      'Group Membership' => '* Runoffs2019',
       'E-mail 1 - Type'  => '* ',
       'E-mail 1 - Value' => $$hr{'Email'},
     });
