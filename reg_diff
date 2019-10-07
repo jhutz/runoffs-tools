@@ -6,15 +6,17 @@ use Text::CSV;
 use strict;
 
 our @KeyCols = ('Class', 'Member #');
+our @ExtraCols;
 our %Ignore = map(($_ => 1), ('Reg Date'));
 
 sub usage {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
-usage: reg_diff [-n | -k key] file1 file2
+usage: reg_diff [-n | -k key] [-x extra] file1 file2
        reg_diff -h
   -n  Use class+no instead of class+memberID as key
   -k  Use specified fields as keys (comma-separated)
+  -x  Include extra fields (comma-separated)
   -h  This help message
 EOF
   exit !!@_;
@@ -23,13 +25,16 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('hnk:', \%opts) or usage("Invalid option!");
+  getopts('hnk:x:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
   die "Cannot use -k and -n together\n" if $opts{k} && $opts{n};
   if ($opts{n}) {
     @KeyCols = ('Class','Car #');
   } elsif ($opts{k}) {
     @KeyCols = split(/,/, $opts{k});
+  }
+  if ($opts{x}) {
+    @ExtraCols = split(/,/, $opts{x});
   }
 
   usage('Exactly two filenames are required') unless @ARGV == 2;
@@ -70,7 +75,7 @@ autoflush STDERR 1;
 my $A = load_csv($ARGV[0]);
 my $B = load_csv($ARGV[1]);
 my $OUT = new Text::CSV( { binary => 1, eol => "\n" });
-$OUT->print(\*STDOUT, [qw[key field old new]]);
+$OUT->print(\*STDOUT, [qw[key field old new], @ExtraCols]);
 
 foreach my $key (sort keys %$A) {
   my $a = $$A{$key};
@@ -83,7 +88,9 @@ foreach my $key (sort keys %$A) {
     next unless exists $$b{$col};
     next if $Ignore{$col};
     next if $$a{$col} eq $$b{$col};
-    $OUT->print(\*STDOUT, [ $key, $col, $$a{$col}, $$b{$col}]);
+    $OUT->print(\*STDOUT, [ $key, $col, $$a{$col}, $$b{$col},
+        map((exists($$b{$_}) ? $$b{$_} : $$a{$_}), @ExtraCols)
+      ]);
   }
 }
 foreach my $key (sort keys %$B) {
