@@ -314,7 +314,8 @@ if (defined($Practice)) {
         $text .= ' ' x 15;
         next;
       }
-      my($group) = grep(grep($$_[0] eq $hours{$hour}{$date},
+      my($group) = grep(grep(
+          defined($_) && $$_[0] eq $hours{$hour}{$date},
           @{$GroupQuals{$_}}), keys %GroupQuals);
       #$group =~ s#//# // #;
       $text .= sprintf("%-15s", $group);
@@ -400,6 +401,7 @@ if (defined($Practice)) {
 
       # Emit the qualifying sessions for the group
       foreach my $i (0 .. @{$GroupQuals{$qgroup}}-1) {
+        next unless defined($GroupQuals{$qgroup}[$i]);
         my($when, $duration) = @{$GroupQuals{$qgroup}[$i]};
         foreach my $qgname (@qgnames) {
           my($ss,$mm,$hh,$DD,$MM,$YY) = localtime($when);
