@@ -1180,6 +1180,9 @@ def print_change(change):
     prtfields = Config.get('printFields', [])
     ignfields = set(prtfields + Config.get('noPrintFields', []))
     ignfields.update(Config['irrelevantFields'])
+    ignfields.add('vehicleNumber');
+    ignfields.add('classShort');
+    ignfields.add('fullName');
 
     fields = {
         'xid'       : ps_str(change['xid']),
@@ -1203,9 +1206,13 @@ def print_change(change):
     if change['action'] == 'DROP': fields['status'] = ps_str('WITHDRAWN')
     if change['action'] == 'REST': fields['status'] = ps_str('REINSTATED')
     fields['other_old'] = ''.join("%s %s Field newline" % (ps_str(k), ps_str(v))
-            for k,v in change['old'].items() if k not in ignfields)
+            for k,v in change['old'].items()
+            if msr_change_field_names.get(k, k) is not None
+            and msr_change_field_names.get(k, k) not in ignfields)
     fields['other_new'] = ''.join("%s %s Field newline" % (ps_str(k), ps_str(v))
-            for k,v in change['new'].items() if k not in ignfields)
+            for k,v in change['new'].items()
+            if msr_change_field_names.get(k, k) is not None
+            and msr_change_field_names.get(k, k) not in ignfields)
     #XXX warnings
     text = Template(Config['printTemplate']).substitute(fields)
     with os.popen('lp -d%s' % Options.printer, 'w') as lp:
