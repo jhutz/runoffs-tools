@@ -45,6 +45,7 @@ use vars qw($format $carno $class $name);
   engine   => 'Engine',
   color    => 'Color',
   sponsor  => 'Sponsor',
+  group    => 'Group',
 );
 
 sub usage {
@@ -358,6 +359,7 @@ while (<>) {
   my $qgroup = $QualGroup{$class};
   my $qsub   = $QualSub{$class};
   my $rgroup = $RaceGroup{$class};
+  my $group = defined($Cols{group}) ? $fields[$Cols{group}] : undef;
 
   # Data validation/repair
   foreach my $field (sort keys %Validate) {
@@ -373,7 +375,7 @@ while (<>) {
   my $mcx = join(' ', map("$_:$fields[$Cols{$_}]", qw(member class car txno)));
   foreach my $f (qw(member car txno)) {
     next unless $fields[$Cols{$f}] ne '';
-    foreach ($class, $qgroup, $qsub, $rgroup) {
+    foreach ($class, $qgroup, $qsub, $rgroup, $group) {
       next unless defined $_;
       $Keys{join(':', $_, $f, $fields[$Cols{$f}])} ||= [];
       push(@{$Keys{join(':', $_, $f, $fields[$Cols{$f}])}}, $mcx);
