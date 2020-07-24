@@ -288,6 +288,7 @@ def load_config():
         okey = key.replace('-','_')
         if key in Config and getattr(Options, okey, None) is None:
             setattr(Options, okey, Config[key])
+    # XXX if Options[segment_id] is a string, make it a list
     for key in opts_defaults.keys():
         if getattr(Options, key, None) is None:
             setattr(Options, key, opts_defaults[key])
@@ -728,23 +729,27 @@ def msr_get_assign_list(cleanup=True):
     if Options.assign_data is not None:
         _msr_load_fake_assigns()
         return [ deepcopy(x) for x in Fake_Assigns.values() ]
-    j = msr_get('events/%s/segments/%s/assignments' %
-            (Options.event_id, Options.segment_id),
-            msr_assign_params)
+    assigns = []
+    for seg in Options.segment_id:
+        j = msr_get('events/%s/segments/%s/assignments' % (Options.event_id, seg),
+                msr_assign_params)
+        assigns += j['response']['assignments']
     if cleanup:
-        return map(_msr_cleanup, j['response']['assignments'])
-    return j['response']['assignments']
+        return map(_msr_cleanup, assigns)
+    return assigns
 
 def msr_get_assign_dict(cleanup=True):
     if Options.assign_data is not None:
         _msr_load_fake_assigns()
         return { k : deepcopy(v) for k,v in Fake_Assigns.items() }
-    j = msr_get('events/%s/segments/%s/assignments' %
-            (Options.event_id, Options.segment_id),
-            msr_assign_params)
+    assigns = []
+    for seg in Options.segment_id:
+        j = msr_get('events/%s/segments/%s/assignments' % (Options.event_id, seg),
+                msr_assign_params)
+        assigns += j['response']['assignments']
     if cleanup:
-        return { x['id'] : _msr_cleanup(x) for x in j['response']['assignments'] }
-    return { x['id'] : x for x in j['response']['assignments'] }
+        return { x['id'] : _msr_cleanup(x) for x in assigns }
+    return { x['id'] : x for x in assigns }
 
 
 def msr_add_member_info(rec, cache=None, mem=None):
@@ -790,7 +795,7 @@ def msr_get_changes(cleanup=True):
             sys.stderr.write('Loaded %d fake changes\n' % len(fake_changes))
         return fake_changes
 
-    params = { 'segments' : Options.segment_id }
+    params = { 'segments' : ','.join(Options.segment_id) }
     if Options.since is not None:
         params['since'] = Options.since.strftime('%Y-%m-%d %H:%M:%S.%f')
     elif 'DB' in globals():
