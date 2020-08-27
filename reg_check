@@ -224,12 +224,14 @@ sub v_email ($$$) {
 
 sub v_carno ($$$) {
   my($field, $value, $fields) = @_;
+  return '' if $value eq '';
   problem("Invalid $field: $value") unless $value =~ /^(1?[0-9])?[0-9]$/;
   $value;
 }
 
 sub v_memberid ($$$) {
   my($field, $value, $fields) = @_;
+  return '' if $value eq '';
   problem("Strange member ID: $value") if $value =~ /[^0-9_]/;
   $value;
 }
@@ -238,6 +240,7 @@ sub v_txno ($$$) {
   my($field, $value, $fields) = @_;
   $value =~ s/^0*//;
 
+  return '' if $value eq '';
   if ($value < 100 || ($value >= 10000 && $value < 11000)
     || $value eq substr('123456789', 0, length($value))
     || $value =~ /^([1-9])\1*$/) {
