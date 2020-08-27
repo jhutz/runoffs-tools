@@ -1090,11 +1090,12 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
         return
 
     if Options.long:
-        fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year!s:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
+        fmt = '{vehicleNumber!s:>3} {classShort:6} {groupShort:6} {_fullName:30.30} {memberId!s:8} {transponder!s:8} {year!s:4} {make:20.20} {model:20.20} {color:15.15} {sponsor:20}'
     else:
         fmt = '{vehicleNumber!s:>3} {classShort:6} {_fullName:30.30} {transponder!s:8} {year!s:4} {_MM:22}'
     col_headers = {
             'vehicleNumber'   : 'No.',
+            'groupShort'      : 'Group',
             'classShort'      : 'Class',
             '_fullName'       : 'Name',
             'transponder'     : 'Tx #',
