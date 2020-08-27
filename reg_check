@@ -47,6 +47,8 @@ use vars qw($format $carno $class $name);
   color    => 'Color',
   sponsor  => 'Sponsor',
   group    => 'Group',
+  mm       => 'Make/Model',
+  ht       => 'Hometown',
 );
 
 sub usage {
@@ -390,6 +392,18 @@ while (<>) {
       $value = $cb->($ColNames{$field}, $value, \@fields);
     }
     $fields[$Cols{$field}] = $value;
+    if (($field eq 'make' || $field eq 'model') && exists $Cols{mm}) {
+      $fields[$Cols{mm}] = $fields[$Cols{make}] . ' ' . $fields[$Cols{model}];
+      $fields[$Cols{mm}] =~ s/\s+/ /g;
+      $fields[$Cols{mm}] =~ s/^\s*//g;
+      $fields[$Cols{mm}] =~ s/\s*$//g;
+    }
+    if (($field eq 'city' || $field eq 'state') && exists $Cols{ht}) {
+      $fields[$Cols{ht}] = $fields[$Cols{city}] . ' ' . $fields[$Cols{state}];
+      $fields[$Cols{ht}] =~ s/\s+/ /g;
+      $fields[$Cols{ht}] =~ s/^\s*//g;
+      $fields[$Cols{ht}] =~ s/\s*$//g;
+    }
   }
 
   # Collect counts for duplicate checks
