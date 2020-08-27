@@ -310,7 +310,6 @@ sub v_miata ($$$) {
   txno     => [ \&v_nonblank,  \&v_numeric,   \&v_txno  ],
   email    => [ \&v_nonblank,  \&v_email,     ],
   member   => [ \&v_nonblank,  \&v_memberid,  ],
-  class    => [ \&v_nonblank,  \&v_bspec,     ],
   color    => [ \&v_nonblank,  \&v_comma,     ],
   sponsor  => [ \&v_comma,     \&v_slash,     ],
   make     => [ \&v_fixed_make,  \&v_nonblank,  \&v_namecaps,  ],
@@ -367,6 +366,12 @@ while (<>) {
   $carno = $fields[$Cols{car}];
   $class = $fields[$Cols{class}];
   $name = join(' ', $fields[$Cols{first}], $fields[$Cols{last}]);
+
+  # Need to validate/correct class early, since it affects other things.
+  foreach my $cb ( \&v_nonblank, \&v_bspec ) {
+    $class = $cb->($ColNames{class}, $class, \@fields);
+  }
+  $fields[$Cols{class}] = $class;
   my $qgroup = $QualGroup{$class};
   my $qsub   = $QualSub{$class};
   my $rgroup = $RaceGroup{$class};
