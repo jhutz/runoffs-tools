@@ -12,9 +12,10 @@ our %Ignore = map(($_ => 1), ('Reg Date'));
 sub usage {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
-usage: reg_diff [-n | -k key] [-x extra] [-i ignore] file1 file2
+usage: reg_diff [-n | -g | -k key] [-x extra] [-i ignore] file1 file2
        reg_diff -h
   -n  Use class+no instead of class+memberID as key
+  -g  Use group+class+no instead of class+memberID as key
   -k  Use specified fields as keys (comma-separated)
   -x  Include extra fields (comma-separated)
   -i  Columns to ignore (comma-separated)
@@ -26,11 +27,15 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('hi:nk:x:', \%opts) or usage("Invalid option!");
+  getopts('ghi:nk:x:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
-  die "Cannot use -k and -n together\n" if $opts{k} && $opts{n};
+  if ($opts{g} + $opts{n} + defined($opts{k}) > 1) {
+    die "Use at most one of -g -n, or -k\n";
+  }
   if ($opts{n}) {
     @KeyCols = ('Class','Car #');
+  } elsif ($opts{g}) {
+    @KeyCols = ('Group', 'Class','Car #');
   } elsif ($opts{k}) {
     @KeyCols = split(/,/, $opts{k});
   }
