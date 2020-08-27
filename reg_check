@@ -36,6 +36,7 @@ use vars qw($format $carno $class $name);
   city     => 'City',
   state    => 'State',
   member   => 'Member #',
+  region   => 'Region',
   class    => 'Class',
   car      => 'Car #',
   year     => 'Year',
@@ -313,6 +314,7 @@ sub v_miata ($$$) {
   txno     => [ \&v_nonblank,  \&v_numeric,   \&v_txno  ],
   email    => [ \&v_nonblank,  \&v_email,     ],
   member   => [ \&v_nonblank,  \&v_memberid,  ],
+  region   => [ \&v_nonblank,                 ], #XXX should check abbrev?
   color    => [ \&v_nonblank,  \&v_comma,     ],
   sponsor  => [ \&v_comma,     \&v_slash,     ],
   make     => [ \&v_fixed_make,  \&v_nonblank,  \&v_namecaps,  ],
