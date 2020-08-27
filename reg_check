@@ -11,10 +11,10 @@ use vars qw(@Cols %Cols %QualGroup %QualSub %RaceGroup %Keys);
 use vars qw($format $carno $class $name);
 
 # Qualifying Groups (except single classes)
-@QGroups = qw(T2/STU T4/B-Spec P1/P2 FP/HP FF/F5 GT1/GT2 FE/FE2/FM AS/T1 GT3/GTL FA/FB/FC);
+#@QGroups = qw(T2/STU T4/B-Spec P1/P2 FP/HP FF/F5 GT1/GT2 FE/FE2/FM AS/T1 GT3/GTL FA/FB/FC);
 
 # Race Groups (except single classes and qual groups racing all together)
-@RGroups = qw(FE/FE2 FA/FB);
+#@RGroups = qw(FE/FE2 FA/FB);
 
 %YearClasses   = map(($_ => 1), qw(EP FP HP SM T1 T2 T3 T4));
 %EngineClasses = map(($_ => 1), qw(F5 FA FB FF P1 P2));
