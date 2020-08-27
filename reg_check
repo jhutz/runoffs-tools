@@ -248,8 +248,19 @@ sub v_txno ($$$) {
 
 sub v_bspec ($$$) {
   my($field, $value, $fields) = @_;
-  if ($value =~ s/^(bs|bspec|b-spec)$/B-Spec/i && $value ne 'B-Spec') {
+  if ($value =~ /^(bs|bspec|b-spec)$/i && $value ne 'B-Spec') {
     problem('*', "$field B-Spec misspelled as $value") if $VERBOSE;
+    $value = 'B-Spec';
+  } elsif ($value =~ /^gt(?:-|\s*)([123x])$/i && $value ne 'GT'.uc($1)) {
+    my $newval = 'GT'.uc($1);
+    problem('*', "$field $newval misspelled as $value") if $VERBOSE;
+    $value = $newval;
+  } elsif ($value =~ /^fe(-|\s*)2$/i && $value ne 'FE2') {
+    problem('*', "$field FE2 misspelled as $value") if $VERBOSE;
+    $value = 'FE2';
+  } elsif ($value =~ /^srf(-|\s*)3$/i && $value ne 'SRF3') {
+    problem('*', "$field SRF3 misspelled as $value") if $VERBOSE;
+    $value = 'SRF3';
   }
   $value;
 }
