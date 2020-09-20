@@ -184,7 +184,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
     }
     # Kludge!  Skip not-real "sessions" and garbage times that
     # appear in the events column to the right of the schedule.
-    next if /^\s*(anthem|lunch|dinner|[ap]m\b)/i;
+    next if /^\s*(anthem|lunch|dinner|qualifying(:?)|the\s*\d+(st|nd|rd|th)\s*running|[ap]m\b)/i;
 
     # Kludge!  "Friday Night Lights" are not race sessions :-)
     s/\s+Friday.*//;
