@@ -114,6 +114,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
   my @all_lines = <>;
   while (@all_lines) {
     $_ = shift(@all_lines);
+    next if /^\s*$/;
     s#\s*([,/]+)\s*#$1#g;
     if (/^\s*NATIONAL\s+CHAMPIONSHIP\s+RACES/i) {
       $mode = 'R';
