@@ -23,6 +23,8 @@ our $RaceLaps;
 
 our $QualTimeAM = 20;
 our $QualTimePM;
+our $QualStart;
+our $QualIncr;
 
 our %Categories = (
   'AS/T1'      => [qw[AS T1]],
@@ -72,20 +74,21 @@ sub unix2excel ($) {
   return ($local + 2208988800 + 86400 + 86400) / 86400;
 }
 
-getopts('2dhs:x:z:Q:R:', \%Opts);
+getopts('2dhs:x:z:F:Q:R:', \%Opts);
 if ($Opts{'h'}) {
   print <<'EOF';
 usage: schedconvert [opts] < input
        schedconvert -h
 
-  -d        Enable debugging
-  -h        Print help message
-  -2        Emit "seamless" sessions as two Orbits runs
-  -s PATH   Output CSV schedule table in PATH (default schedule.csv)
-  -x PATH   Output Orbits XML run data in PATH (default schedule.xml)
-  -z ZONE   Interpret schedule data in ZONE (default local timezone)
-  -Q days   set # days qualifying
-  -R days   set # days racing
+  -d            Enable debugging
+  -h            Print help message
+  -2            Emit "seamless" sessions as two Orbits runs
+  -s PATH       Output CSV schedule table in PATH (default schedule.csv)
+  -x PATH       Output Orbits XML run data in PATH (default schedule.xml)
+  -z ZONE       Interpret schedule data in ZONE (default local timezone)
+  -F start/step Followed-by qual schedule start/step (ex: 8:00/30)
+  -Q days       set # days qualifying
+  -R days       set # days racing
 EOF
   exit 0;
 }
@@ -94,6 +97,9 @@ $Opts{'x'} ||= 'schedule.xml';
 if (exists($Opts{'z'})) {
   $ENV{TZ} = $Opts{'z'};
   POSIX::tzset();
+}
+if (exists($Opts{'F'})) {
+  ($QualStart, $QualIncr) = split(/\//, $Opts{'F'});
 }
 
 
@@ -156,6 +162,8 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
     # OK; look for something resembling a schedule row
     if (defined($lasthhmm) && !/^\s*(\d+):(\d+)/) {
       $_ = "$lasthhmm $_";
+    } elsif ($mode eq 'Q' && defined($QualStart) && !/^\s*(\d+):(\d+)/) {
+      $_ = "$QualStart $_";
     }
     $lasthhmm = undef;
 
@@ -169,6 +177,10 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
       unshift(@all_lines, $2 . ' ' x length($prefix.$`) . $1 . $3);
     }
 
+    if ($mode eq 'Q' && defined($QualIncr) && /^\s*lunch/i) {
+      # Add an extra hour for lunch
+      $QualStart = sprintf("%02d:%02d", $hh + 1, $mm);
+    }
     # Kludge!  Skip not-real "sessions" and garbage times that
     # appear in the events column to the right of the schedule.
     next if /^\s*(anthem|lunch|dinner|[ap]m\b)/i;
@@ -208,6 +220,10 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
     if (!grep(defined($_), @groups)) {
       $lasthhmm = "$hh:$mm";
       next;
+    }
+    if (defined($QualIncr)) {
+      my $nmm = $mm + $QualIncr;
+      $QualStart = sprintf("%02d:%02d", $hh + int($nmm / 60), $nmm % 60);
     }
 
     foreach my $i (0 .. @groups-1) {
