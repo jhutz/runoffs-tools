@@ -29,15 +29,14 @@ our $QualIncr;
 our %Categories = (
   'AS/T1'      => [qw[AS T1]],
   'GT1/GT2'    => [qw[GT1 GT2]],
-  'GT3/GTL'    => [qw[GT3 GTL]],
-  'FA/FB/FC'   => [qw[FA FB FC]],
-  'FE/FE2/FM'  => [qw[FE FE2 FM]],
+  'EP/GTL'     => [qw[EP GTL]],
+  'FA/FC/FX'   => [qw[FA FC FX]],
   'FF/F5'      => [qw[FF F5]],
-  'FP/HP'      => [qw[FP HP]],
   'P1/P2'      => [qw[P1 P2]],
   'T2/STU'     => [qw[T2 STU]],
-  'T4/B-Spec'  => [qw[T4 B-Spec]],
-  # Single-class groups: EP FV SM SRF3 STL T3
+  'T3/T4'      => [qw[T3 T4]],
+  'HP/B-Spec'  => [qw[HP B-Spec]],
+  # Single-class groups: FE2 FP FV GT3 SM SRF3 STL
 );
 our %ClassCategory = ();
 foreach my $cat (keys %Categories) {
