@@ -7,8 +7,8 @@ use IO::Dir;
 use IO::File;
 use Time::Local;
 
-$SourceDir = '/home/runoffs/Dropbox/Runoffs-2019';
-$BackupDir = '/home/runoffs/Backups/Runoffs-2019';
+$SourceDir = '/home/runoffs/Dropbox/Runoffs-2020';
+$BackupDir = '/home/runoffs/Backups/Runoffs-2020';
 
 $| = 1;
 

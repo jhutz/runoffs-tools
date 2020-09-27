@@ -20,5 +20,5 @@ day=$(date -d$date +'%A, %B %-d, %Y')
 
 chartroom -C "$2" "$chartdir/$gfile.crx" group="$group" date="$day" time="$time"
 chartroom -P "$chartdir/$gfile.crx" /tmp/chart/$gfile.ps
-ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs2019 Race Lapchart.pdf"
+ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs2020 Race Lapchart.pdf"
 chartroom "$chartdir/$gfile.crx" &
