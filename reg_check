@@ -19,6 +19,7 @@ use vars qw($format $carno $class $name);
 %YearClasses   = map(($_ => 1), qw(EP FP HP SM T1 T2 T3 T4));
 %EngineClasses = map(($_ => 1), qw(F5 FA FB FF P1 P2));
 
+my %FM_Word = map(($_ => 1), qw[Star Formula Mazda FM]);
 %FixedMM = (
   FE   => [ 'SCCA', 'Mazda FE' ],
   FE2  => [ 'SCCA', 'Mazda FE2' ],
@@ -383,6 +384,26 @@ while (<>) {
   my $qsub   = $QualSub{$class};
   my $rgroup = $RaceGroup{$class};
   my $group = defined($Cols{group}) ? $fields[$Cols{group}] : undef;
+
+  # Kludge - fixed make/model for former FM cars in FX
+  if ($class eq 'FX' && exists $Cols{make} && exists $Cols{model}) {
+    my $mm = $fields[$Cols{make}] . ' ' . $fields[$Cols{model}];
+    $mm =~ s/[^a-zA-Z0-9]+/ /g;
+
+    # Figure it's a former FM car if
+    # 1) the phrase "Formula Mazda" or "Mazda Formula" appears in make/model
+    # 2) no words appear other than "Star", "Formula", "Mazda", and "FM"
+    if (($mm =~ /\bFormula\s+Mazda\b/i || $mm =~ /\bMazda\s+Formula\b/i)
+      && !grep(!$FM_Word{$_}, split(' ', $mm))) {
+      if ($VERBOSE) {
+        problem('*', sprintf("Incorrect make/model (%s/%s) for former FM car in FX",
+            $fields[$Cols{make}], $fields[$Cols{model}]));
+      }
+      $fields[$Cols{make}] = 'Star';
+      $fields[$Cols{model}] = 'Formula Mazda';
+      $fields[$Cols{mm}] = 'Star Formula Mazda' if exists $Cols{mm};
+    }
+  }
 
   # Data validation/repair
   foreach my $field (sort keys %Validate) {
