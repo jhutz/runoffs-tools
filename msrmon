@@ -289,6 +289,8 @@ def load_config():
         if key in Config and getattr(Options, okey, None) is None:
             setattr(Options, okey, Config[key])
     # XXX if Options[segment_id] is a string, make it a list
+    if isinstance(getattr(Options, 'segment_id', None), str):
+        setattr(Options, 'segment_id', getattr(Options, 'segment_id').split(','))
     for key in opts_defaults.keys():
         if getattr(Options, key, None) is None:
             setattr(Options, key, opts_defaults[key])
