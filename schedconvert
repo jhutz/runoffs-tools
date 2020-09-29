@@ -20,6 +20,7 @@ our %OrbitsGroups = (); # Map Orbits group name to qual groups
 our $QualTime;
 our $RaceTime;
 our $RaceLaps;
+our $QualCols = 4; # Minimum number of qualifying columns in CSV output
 
 our $QualTimeAM = 20;
 our $QualTimePM;
@@ -377,6 +378,7 @@ if (defined($Practice)) {
     or die "$Opts{'s'}: $!\n";
   foreach my $class (sort keys %ClassGroup) {
     my @times = @{$ClassQuals{$class}};
+    push(@times, ('') x ($QualCols - @times)) if @times < $QualCols;
     push(@times, $ClassRaces{$class});
     push(@times, $Practice) if defined $Practice;
     print $F join(',', $class, map(unix2excel($_), @times),
@@ -386,6 +388,7 @@ if (defined($Practice)) {
   foreach my $group (sort keys %groups) {
     my @classes = split(m#[/\s]+#, $group);
     my @times = @{$ClassQuals{$classes[0]}};
+    push(@times, ('') x ($QualCols - @times)) if @times < $QualCols;
     push(@times, $GroupRaces{$group});
     push(@times, $Practice) if defined $Practice;
     print $F join(',', qq/"$group"/, map(unix2excel($_), @times), ''), "\r\n";
