@@ -318,7 +318,7 @@ sub v_miata ($$$) {
   email    => [ \&v_nonblank,  \&v_email,     ],
   member   => [ \&v_nonblank,  \&v_memberid,  ],
   region   => [ \&v_nonblank,                 ], #XXX should check abbrev?
-  color    => [ \&v_nonblank,  \&v_comma,     ],
+  color    => [ \&v_comma,                    ],
   sponsor  => [ \&v_comma,     \&v_slash,     ],
   make     => [ \&v_fixed_make,  \&v_nonblank,  \&v_namecaps,  ],
   model    => [ \&v_fixed_model, \&v_nonblank,  \&v_namecaps, \&v_miata ],
