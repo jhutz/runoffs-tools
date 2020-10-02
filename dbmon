@@ -1,0 +1,55 @@
+#!/bin/bash
+
+year=2020
+users='jhutz runoffs'
+hosts='Terok-Nor Galactica Heart-of-Gold' # Destiny
+bkhosts='Terok-Nor Heart-of-Gold'
+ssh_ctl='-oControlMaster=auto -oControlPersist=yes '
+
+label () { printf '%-12s' "$hk $1"; shift; "$@" 2>&1; }
+
+if [ -z "$TERM" -o x$TERM = xdumb ] ; then
+  exec gnome-terminal --profile=dbmon -e "$0 $*"
+fi
+
+local=
+if [ "x$1" = "x-l" ] ; then local=yes ; fi
+
+here=$(hostname)
+tmp=/run/user/$(id -u)
+if [ ! -d $tmp ] ; then tmp=/tmp; fi
+f=$(mktemp)
+
+while true ; do
+  {
+    date +'Dropbox status %H:%M:%S'
+    for h in $hosts; do
+      hk=$(echo $h | sed -e 's/\(.\)[^-]*\(-\|$\)/\1/g')
+      if [ ${h,,} = $here ] ; then
+        sj=""
+        sr="sudo -iu runoffs"
+      else
+        if [ x$local = xyes ] ; then continue; fi
+        sj="ssh $ssh_ctl -oControlPath=$tmp/ssh.j@${hk} jhutz@${h,,}.local"
+        sr="ssh $ssh_ctl -oControlPath=$tmp/ssh.${hk} runoffs@${h,,}.local"
+      fi
+      if [ $hk != HoG ]; then
+        label jhutz   $sj dropbox status
+      fi
+      label runoffs $sr dropbox status
+      label backup  $sr ./runoffs-backup-job -s
+      for b in $bkhosts; do
+        if [ $h = $b ] ; then continue; fi
+        bk=$(echo $b | sed -e 's/\(.\)[^-]*\(-\|$\)/\1/g')
+        if [ ${b,,} = $here ] ; then
+          sb="sudo -iu runoffs"
+        else
+          sb="ssh $ssh_ctl -oControlPath=$tmp/ssh.${bk} runoffs@${b,,}.local"
+        fi
+        label "> $bk" $sb stat -c%y Backups/Runoffs-$year-${h^^}
+      done
+    done
+  } > $f
+  clear; cat $f
+  sleep 1
+done
