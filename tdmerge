@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # feed me the 'testday' TSV format, with at least these columns:
-# Class, Member #, Test Day Segment
+# Class, Car #, Member #, Test Day Segment
 
 use Text::CSV;
 
@@ -18,19 +18,20 @@ while ($hr = $IN->getline_hr(\*STDIN)) {
 
   $key = join('_', $class, $$hr{'Member #'});
   $day = substr($$hr{'Test Day Segment'}, 0, 3);
-  $Entries{$key}{$day} = $Days{$day} || 99;
+  #$Entries{$key}{$day} = $Days{$day} || 99;
+  $Entries{$key}{$day} = $$hr{'Car #'};
 }
 
 my $OUT = Text::CSV->new( {
     quote_space => 1, binary => 1, eol => "\r\n",
   });
-$OUT->print(\*STDOUT, [qw[Cls_Member Days]]);
+$OUT->print(\*STDOUT, [qw[Cls_Member Days], @Days]);
 foreach my $entry (sort keys %Entries) {
   $OUT->print(\*STDOUT, [
       $entry,
       join(' ', sort {
-        $Entries{$entry}{$a} <=> $Entries{$entry}{$b}
-        || $a cmp $b
-        } keys %{$Entries{$entry}})
+        $Days{$a} <=> $Days{$b} || $a cmp $b
+        } keys %{$Entries{$entry}}),
+      map($Entries{$entry}{$_} // '', @Days)
     ]);
 }
