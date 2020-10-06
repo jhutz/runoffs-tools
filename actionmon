@@ -581,6 +581,7 @@ sub parse_action ($;$) {
             #logo_data => $LOGODATA,
           };
           unshift(@actions, $action);
+          print STDERR "tr $rownum\n" if $DEBUG;
 
         } elsif ($tag eq 'span' && $$attrs{id} =~ /RadGrid.*_ctl\d+_/) {
           $field = $';
@@ -588,10 +589,12 @@ sub parse_action ($;$) {
           $field =~ s/Label$//;
           $field =~ s/_displayonly$//;
           $ftext = undef;
+          print STDERR "span $field\n" if $DEBUG;
 
         } elsif ($tag eq 'span' && $update) {
           $field = $$attrs{id};
           $ftext = undef;
+          print STDERR "span -\n" if $DEBUG;
 
         } elsif ($tag eq 'select' && $$attrs{id} =~ /RadGrid.*_ctl\d+_/) {
           $sfield = $';
@@ -599,6 +602,7 @@ sub parse_action ($;$) {
           $sfield =~ s/Label$//;
           $sfield =~ s/_displayonly$//;
           if ($sfield eq 'act_cls_key') { $sfield = '_session' }
+          print STDERR "select $sfield\n" if $DEBUG;
 
         } elsif ($tag eq 'option' && defined $sfield && $$attrs{selected}) {
           $field = $sfield;
@@ -616,14 +620,17 @@ sub parse_action ($;$) {
           if ($ftext ne '' || $$action{$field} eq '') {
             $$action{$field} = $ftext;
           }
+          print STDERR "field $field = [$ftext]\n" if $DEBUG;
 
         } elsif ($tag eq 'td' && defined($action)
           && !exists($$action{_act_key})) {
           $$action{_act_key} = $ftext;
+          print STDERR "_act_key $ftext\n" if $DEBUG;
 
         } elsif ($tag eq 'td' && defined($action)
           && !exists($$action{_cls_key})) {
           $$action{_cls_key} = $ftext;
+          print STDERR "_cls_key $ftext\n" if $DEBUG;
 
         } elsif ($tag eq 'select') {
           $sfield = undef;
