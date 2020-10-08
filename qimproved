@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+
+use Text::CSV;
+
+
+sub improved ($$) {
+  my($q1, $q2) = @_;
+
+  return '' unless $q1 =~ /^(\d):(\d{2})\.(\d{3})$/;
+  my $t1 = 60000 * $1 + 1000 * $2 + $3;
+  return '' unless $q2 =~ /^(\d):(\d{2})\.(\d{3})$/;
+  my $t2 = 60000 * $1 + 1000 * $2 + $3;
+  return '' unless $t1 && $t2 && $t2 < $t1;
+  my $d = $t1 - $t2;
+  sprintf("%d:%02d.%03d", int($d / 60000), int($d / 1000) % 60, $d % 1000);
+}
+
+my $IN = new Text::CSV({ binary => 1 });
+my $OUT = new Text::CSV({ binary => 1, quote_space => 0, quote_binary => 0 });
+$IN->column_names($IN->getline(\*STDIN));
+$OUT->column_names($IN->column_names(), 'Improved');
+$OUT->eol("\r\n");
+$OUT->print(\*STDOUT, [ $OUT->column_names() ]);
+while (my $hr = $IN->getline_hr(\*STDIN)) {
+  $$hr{Improved} = improved($$hr{Q1}, $$hr{Q2});
+  $OUT->print_hr(\*STDOUT, $hr);
+}
