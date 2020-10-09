@@ -10,13 +10,15 @@ group="$1"
 gfile=$(echo $group | sed -e 's#/#,#g')
 passings="$2"
 
-date=$(grep "^$group", $basedir/Documentation/schedule.csv | cut -d, -f6 | cut -d\  -f1)
-time=$(grep "^$group", $basedir/Documentation/schedule.csv | cut -d, -f6 | cut -d\  -f2)
-if [ -z "$date" -o -z "$time" ] ; then
+when=$(grep "^$group", $basedir/Documentation/schedule.csv | cut -d, -f6)
+if [ -z "$when" ] ; then
   echo "Unknown group $group"
   exit 1
 fi
-day=$(date -d$date +'%A, %B %-d, %Y')
+t=$(perl -e 'print int($ARGV[0] * 86400.0) - (2208988800 + 86400 + 86400)' $when)
+day=$(date -ud@$t +'%A, %B %-d, %Y')
+time=$(date -ud@$t +'%H:%M')
+echo $day; echo $time
 
 chartroom -C "$2" "$chartdir/$gfile.crx" group="$group" date="$day" time="$time"
 chartroom -P "$chartdir/$gfile.crx" /tmp/chart/$gfile.ps
