@@ -11,7 +11,7 @@ use vars qw(@Cols %Cols %QualGroup %QualSub %RaceGroup %Keys);
 use vars qw($format $carno $class $name);
 
 # Qualifying Groups (except single classes)
-@QGroups = qw(AS/T1 EP/GTL HP/B-Spec FF/F5 FA/FC/FX GT1/GT2 P1/P2 T2/STU T3/T4);
+#@QGroups = qw(AS/T1 EP/GTL HP/B-Spec FF/F5 FA/FC/FX GT1/GT2 P1/P2 T2/STU T3/T4);
 
 # Race Groups (except single classes and qual groups racing all together)
 #@RGroups = qw(FE/FE2 FA/FB);
