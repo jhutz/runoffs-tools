@@ -49,7 +49,7 @@ my %FM_Word = map(($_ => 1), qw[Star Formula Mazda FM]);
   sponsor  => 'Sponsor',
   group    => 'Group',
   mm       => 'Vehicle Make/Model',
-  ht       => 'Hometown',
+  ht       => 'City/State',
 );
 
 sub usage {
