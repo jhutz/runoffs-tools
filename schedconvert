@@ -28,16 +28,7 @@ our $QualStart;
 our $QualIncr;
 
 our %Categories = (
-  'AS/T1'      => [qw[AS T1]],
-  'GT1/GT2'    => [qw[GT1 GT2]],
-  'EP/GTL'     => [qw[EP GTL]],
-  'FA/FC/FX'   => [qw[FA FC FX]],
-  'FF/F5'      => [qw[FF F5]],
-  'P1/P2'      => [qw[P1 P2]],
-  'T2/STU'     => [qw[T2 STU]],
-  'T3/T4'      => [qw[T3 T4]],
-  'HP/B-Spec'  => [qw[HP B-Spec]],
-  # Single-class groups: FE2 FP FV GT3 SM SRF3 STL
+  # Fill in to override default categories
 );
 our %ClassCategory = ();
 foreach my $cat (keys %Categories) {
@@ -254,7 +245,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
         $GroupQuals{$group}[$i] = [ $when, $duration ];
         foreach my $set (@sets) {
           foreach my $class (split(m#/#, $set)) {
-            $ClassCategory{$class} = $class unless exists $ClassCategory{$class};
+            $ClassCategory{$class} = $set unless exists $ClassCategory{$class};
             if (!exists($ClassGroup{$class})) {
               $ClassGroup{$class} = $group;
             } elsif ($ClassGroup{$class} ne $group) {
