@@ -55,12 +55,15 @@ my %FM_Word = map(($_ => 1), qw[Star Formula Mazda FM]);
 sub usage {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
-usage: reg_check [-dqv] [-o out [-kt]] [file...]
+usage: reg_check [-dqv] [-Q qgroups] [-R rgroups] [-o out [-kt]] [file...]
        reg_check -h
   -d  Debug
   -h  This help message
   -q  Suppress issues not for registration
   -v  Report minor issues and auto-corrections
+
+  -Q  Qual groups (space-separated)
+  -R  Qual groups (space-separated)
 
   -o  output corrected data to file
   -k  add entry key column
@@ -72,13 +75,16 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('dhkqtvo:', \%opts) or usage("Invalid option!");
+  getopts('dhkqtvo:Q:R:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
   $DEBUG++   if $opts{d};
   $QUIET++   if $opts{q};
   $VERBOSE++ if $opts{v};
   $KeyOUT++  if $opts{k};
   $TabOUT = $opts{t} ? "\t" : ',';
+
+  @QGroups = split(' ', $opts{Q}) if exists $opts{Q};
+  @RGroups = split(' ', $opts{R}) if exists $opts{R};
 
   if ($opts{o}) {
     $OUT = new IO::File($opts{o}, O_WRONLY|O_CREAT|O_TRUNC, 0666)
@@ -336,6 +342,8 @@ sub v_miata ($$$) {
   mm       => [ \&v_fixed_mm, \&v_nonblank, \&v_namecaps, ],
 );
 
+parse_args;
+
 # Qualifying Groups (except single classes)
 foreach my $group (@QGroups) {
   if ($group =~ m#//#) {
@@ -357,8 +365,6 @@ foreach my $group (@RGroups) {
     $RaceGroup{$class} = $group;
   }
 }
-
-parse_args;
 
 # Read the header
 {
