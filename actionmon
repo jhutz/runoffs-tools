@@ -3,6 +3,7 @@
 use Archive::Zip qw(:ERROR_CODES :CONSTANTS);
 use Data::Dumper;
 use DBI;
+use DirHandle;
 use File::Basename;
 use Getopt::Std;
 use HTML::Parser;
@@ -15,13 +16,12 @@ use Text::CSV;
 use Text::Wrap;
 
 use strict;
-use vars qw($LOGOFILE $LOGOPATH $LOGODATA $CKPath %ClassKey $LIST);
+use vars qw(%LOGO $CKPath %ClassKey $LIST);
 use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
 use vars qw($DBPath $DB $Template $Printer $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
 
-$LOGOFILE = 'scca-runoffs-2020-ra-alpha.eps';
-$LOGOPATH = "$ENV{HOME}/runoffs/Images/$LOGOFILE";
+$LOGO{logo_dir} = "$ENV{HOME}/runoffs/Images";
 
 $SERVER   = 'racecontrol.scca.com';
 $USERID   = 'tandsusr1';
@@ -190,8 +190,6 @@ sub parse_action ($;$) {
           $rownum =~ s/.*_//;
           $action = {
             _rownum => $rownum,
-            #logo_file => $LOGOFILE,
-            #logo_data => $LOGODATA,
           };
           unshift(@actions, $action);
           print STDERR "tr $rownum\n" if $DEBUG;
@@ -307,7 +305,7 @@ sub action_detail($) {
 sub print_report ($$) {
   my($template, $fields) = @_;
 
-  my %fields = (%$fields, logo_file => $LOGOFILE, logo_data => $LOGODATA);
+  my %fields = (%$fields, %LOGO);
   $template =~ s/\@(\w+)\@/$fields{$1}/g;
   my $P = new IO::Pipe;
   $P->writer('lp', "-d$Printer") or die "lp: $!\n";
@@ -513,12 +511,52 @@ parse_args;
   $F->close;
 }
 
-{
-  my $F = new IO::File($LOGOPATH, O_RDONLY);
-  if ($F) { $F->read($LOGODATA, ($F->stat())[7]) }
-  else    { warn "$LOGOPATH: $!\n" }
-}
+LOAD_LOGO: {
+  if (defined($LOGO{logo_path})) {
+    ($LOGO{logo_file} = $LOGO{logo_path}) =~ s#.*/##;
+  } elsif (!defined(my $D = DirHandle->new($LOGO{logo_dir}))) {
+    warn "$LOGO{logo_dir}: $!\n";
+    last LOAD_LOGO;
+  } else {
+    while (defined($_ = $D->read)) {
+      next unless /\.eps$/;
+      if (defined($LOGO{logo_file})) {
+        warn "Multiple .eps files found in $LOGO{logo_dir}; ignoring\n";
+        last LOAD_LOGO;
+      }
+      $LOGO{logo_file} = $_;
+    }
+    $D->close;
+    if (!defined($LOGO{logo_file})) {
+      warn "No .eps files found in $LOGO{logo_dir}\n";
+      last LOAD_LOGO;
+    }
+    $LOGO{logo_path} = "$LOGO{logo_dir}/$LOGO{logo_file}";
+  }
 
+  if (defined(my $F = new IO::File($LOGO{logo_path}, O_RDONLY))) {
+    $F->read($LOGO{logo_data}, ($F->stat())[7]);
+  } else {
+    warn "$LOGO{logo_path}: $!\n";
+    last LOAD_LOGO;
+  }
+  if (substr($LOGO{logo_data}, 0, 4) eq "\xC5\xD0\xD3\xC6") {
+    # DOS EPS binary
+    my($ps_off, $ps_len) = unpack('xxxxVV', $LOGO{logo_data});
+    $LOGO{logo_data} = substr($LOGO{logo_data}, $ps_off, $ps_len);
+  }
+  if ($LOGO{logo_data} !~ /^\%\%BoundingBox:\s*(.*)/m) {
+    warn "No bounding box found in $LOGO{logo_path}\n";
+    %LOGO = ();
+    last LOAD_LOGO;
+  }
+
+  ($LOGO{logo_bbox} = $1) =~ s/\s*$//;
+  my($x, $y, $w, $h) = split(' ', $LOGO{logo_bbox});
+  my $xscale = 100.0 / ($w - $x);
+  my $yscale = 100.0 / ($h - $y);
+  $LOGO{logo_scale} = sprintf("%.03f", ($xscale < $yscale) ? $xscale : $yscale);
+}
 
 ## Fetch the data file
 $UA = new LWP::UserAgent;
@@ -601,8 +639,8 @@ __DATA__
 %%Page: 1 1
 
 % Runoffs Logo -- copy bbox from logo EPS header
-/logo_bbox {0 0 324 206} def
-/logo_scale 0.30 def
+/logo_bbox { @logo_bbox@ } def
+/logo_scale @logo_scale@ def
 
 BeginEPSF
 % logo_bbox
