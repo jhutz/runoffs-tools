@@ -7,8 +7,23 @@ use IO::Dir;
 use IO::File;
 use Time::Local;
 
-$SourceDir = '/home/runoffs/Dropbox/Runoffs-2020';
-$BackupDir = '/home/runoffs/Backups/Runoffs-2020';
+%Cfg = ();
+{
+  my $cfg = '/home/runoffs/Dropbox/tools/runoffs-job.cfg';
+  my $F = IO::File->new($cfg, O_RDONLY) or die "$cfg: $!\n";
+  while (<$F>) {
+    s/\s*$//;
+    next unless s/^\s*(\w+)=\s*//;
+    my $k = $1;
+    s/^'([^']*)'$/$1/ || s/^"([^"]*)"$/$1/;
+    $Cfg{$k} = $_;
+  }
+  $F->close;
+}
+die "What year???\n" unless $Cfg{year};
+
+$SourceDir = "/home/runoffs/Dropbox/Runoffs-$Cfg{year}";
+$BackupDir = "/home/runoffs/Backups/Runoffs-$Cfg{year}";
 
 $| = 1;
 

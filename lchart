@@ -1,6 +1,8 @@
 #!/bin/sh
 # usage: lchart <group> <passings>
 
+. ${HOME}/Dropbox/SCCA/Events/Runoffs/tools/runoffs-job.cfg
+
 basedir=$HOME/runoffs
 chartdir=${basedir}/Results/Charts
 workdir=${basedir}/Working
@@ -22,5 +24,5 @@ echo $day; echo $time
 
 chartroom -C "$2" "$chartdir/$gfile.crx" group="$group" date="$day" time="$time"
 chartroom -P "$chartdir/$gfile.crx" /tmp/chart/$gfile.ps
-ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs2020 Race Lapchart.pdf"
+ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs$year Race Lapchart.pdf"
 chartroom "$chartdir/$gfile.crx" &

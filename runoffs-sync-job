@@ -1,0 +1,13 @@
+#!/bin/bash
+
+cd $HOME
+. ${HOME}/Dropbox/tools/runoffs-job.cfg
+
+h=$(hostname)
+
+for b in ${bkhosts}; do
+  if [ $h = $b ] ; then continue; fi
+  bk=$(echo ${b,,} | sed -e 's/\(.\)[^-]*\(-\|$\)/\1/g')
+
+  rsync -av --delete Dropbox/Runoffs-${year}/ ${b,,}.local.:Backups/Runoffs-${year}-${h^^}/ >rsync-${bk}.log 2>&1 &
+done

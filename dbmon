@@ -1,9 +1,6 @@
 #!/bin/bash
 
-year=2020
-users='jhutz runoffs'
-hosts='Terok-Nor Galactica Heart-of-Gold' # Destiny
-bkhosts='Terok-Nor Heart-of-Gold'
+. ${HOME}/Dropbox/SCCA/Events/Runoffs/tools/runoffs-job.cfg
 ssh_ctl='-oControlMaster=auto -oControlPersist=yes '
 
 label () { printf '%-12s' "$hk $1"; shift; "$@" 2>&1; }
