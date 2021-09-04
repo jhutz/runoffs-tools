@@ -307,10 +307,14 @@ sub print_report ($$) {
 
   my %fields = (%$fields, %LOGO);
   $template =~ s/\@(\w+)\@/$fields{$1}/g;
-  my $P = new IO::Pipe;
-  $P->writer('lp', "-d$Printer") or die "lp: $!\n";
-  print $P $template;
-  $P->close;
+  if ($Printer eq '-') {
+    print $template;
+  } else {
+    my $P = new IO::Pipe;
+    $P->writer('lp', "-d$Printer") or die "lp: $!\n";
+    print $P $template;
+    $P->close;
+  }
 }
 
 
@@ -431,11 +435,16 @@ sub process_actions ($) {
   }
   if ($REPORT && $Printer && $summary) {
     # Print a summary report
-    my $P = new IO::Pipe;
-    $P->writer('lp', "-d$Printer") or die "lp: $!\n";
-    print $P ' ' x 25, "*** ACTION SUMMARY REPORT ***\n";
-    print $P $summary;
-    $P->close;
+    if ($Printer eq '-') {
+      print ' ' x 25, "*** ACTION SUMMARY REPORT ***\n";
+      print $summary;
+    } else {
+      my $P = new IO::Pipe;
+      $P->writer('lp', "-d$Printer") or die "lp: $!\n";
+      print $P ' ' x 25, "*** ACTION SUMMARY REPORT ***\n";
+      print $P $summary;
+      $P->close;
+    }
   }
 }
 
