@@ -439,13 +439,15 @@ while (<>) {
   }
 
   # Collect counts for duplicate checks
-  my $mcx = sprintf("%-9s #%s %s (%s)",
-    map($fields[$Cols{$_}], qw(member car class txno)));
+  my $mcx = sprintf("%-9s #%-3s %-7s %s %s (%s)",
+    map($fields[$Cols{$_}], qw(member car class first last txno)));
 
   #my $mcx = join(' ', map("$_:$fields[$Cols{$_}]", qw(member class car txno)));
   foreach my $f (qw(member car txno)) {
-    next unless $fields[$Cols{$f}] ne '';
-    foreach ($class, $qgroup, $qsub, $rgroup, $group) {
+    next unless exists $Cols{$f} && $fields[$Cols{$f}] ne '';
+    my %g = map(($_ => 1), grep(defined($_),
+        $class, $qgroup, $qsub, $rgroup, $group));
+    foreach (keys %g) {
       next unless defined $_;
       $Keys{join(':', $_, $f, $fields[$Cols{$f}])} ||= [];
       push(@{$Keys{join(':', $_, $f, $fields[$Cols{$f}])}}, $mcx);
