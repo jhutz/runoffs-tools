@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. ${HOME}/Dropbox/SCCA/Events/Runoffs/tools/runoffs-job.cfg
+. ${HOME}/runoffs/Results/runoffs-tools.cfg
 ssh_ctl='-oControlMaster=auto -oControlPersist=yes '
 
 label () { printf '%-12s' "$hk $1"; shift; "$@" 2>&1; }

@@ -9,7 +9,7 @@ use Time::Local;
 
 %Cfg = ();
 {
-  my $cfg = '/home/runoffs/Dropbox/tools/runoffs-job.cfg';
+  my $cfg = "$ENV{HOME}/Dropbox/tools/runoffs-tools.cfg";
   my $F = IO::File->new($cfg, O_RDONLY) or die "$cfg: $!\n";
   while (<$F>) {
     s/\s*$//;
