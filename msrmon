@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from dateutil import parser as dateutil_parser, tz
 import re
 from string import Template
+import struct
 import argparse
 import requests
 import sqlite3
@@ -303,8 +304,12 @@ def load_config():
     else:
         Config['irrelevantFields'] = set(always_irrelevant)
     if 'logo_file' in Config:
-        with open(Config['logo_file'], 'r') as f:
-            Config['logo_data'] = f.read()
+        with open(Config['logo_file'], 'rb') as f:
+            data = f.read()
+        if data.startswith(bytes.fromhex('C5D0D3C6')):
+            (ps_off, ps_len) = struct.unpack_from('<II', data, offset=4)
+            data = data[ps_off:ps_off+ps_len]
+        Config['logo_data'] = data.decode(encoding="latin1")
 
 def is_uid(s):
     if not isinstance(s, str): return False
