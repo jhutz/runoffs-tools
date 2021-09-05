@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+use 5.022;
 use Getopt::Std;
 use IO::File;
 use POSIX ();
@@ -42,7 +43,19 @@ our %Notes = (
   'S2' => 'All engines Ford',
 );
 
-our $re_day = qr{(?i:mon|tue|wed|thu(?:rs)?|fri|sat|sun)\s+(\d+)/(\d+)};
+our(%Months, $re_day);
+{
+  my @Months = qw[jan feb mar apr may jun jul aug sep oct nov dec];
+  %Months = map(($Months[$_] => $_), 0..11);
+
+  my $mmm = join('|', @Months, qw[april march june july sept]);
+  my $wkd = qr{ (mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun) (day)? }ixn;
+  my $wkd_pfx = qr{( $wkd \.? (?:,|\s+) )}xn;
+
+  $re_day = qr{ (?: $wkd_pfx(\d+)/ | $wkd_pfx? ((?i)$mmm)\.? \s+ ) (\d+) }x;
+
+  #print STDERR map("$_\n", $mmm, $wkd, $wkd_pfx, $re_day);
+}
 
 sub unix2excel ($) {
   my($unix) = @_;
@@ -107,16 +120,16 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
     $_ = shift(@all_lines);
     next if /^\s*$/;
     s#\s*([,/]+)\s*#$1#g;
-    if (/^\s*NATIONAL\s+CHAMPIONSHIP\s+RACES/i) {
+    if (/^\s*NATIONAL\s+CHAMPIONSHIP\s+RACES/i || /^\s*RACE\s+DAYS/i) {
       $mode = 'R';
       @days = ();
       print STDERR "BEGIN RACE SECTION\n" if $Opts{'d'};
     }
-    if (/\b(\d+)\s+LAPS?\b/) {
+    if (/\b(\d+)\s+LAPS?\b/i) {
       $RaceLaps = $1 if $mode eq 'R' && !defined($RaceLaps);
       print STDERR "$RaceLaps LAPS\n" if $Opts{'d'};
     }
-    if (/\b(\d+)\s+MIN\b/) {
+    if (/\b(\d+)(\s+|-)MIN(UTE)?\b/i) {
       $QualTime = $1 if $mode eq 'Q' && !defined($QualTime);
       $RaceTime = $1 if $mode eq 'R' && !defined($RaceTime);
       print STDERR "$QualTime MINUTES\n" if $Opts{'d'} && $mode eq 'Q';
@@ -127,7 +140,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
     # There is a day/date at the top of each column.
     my @newdays = ();
     while (s/^(\s*)$re_day//) {
-      push(@newdays, [$2, $3, length($1)]);
+      push(@newdays, [ $2 // $Months{lc(substr($3, 0, 3))}+1, $4, length($1)]);
     }
     if (!@days && @newdays > 1) {
       # Kludge: we may know how many days of qualifying and/or racing there are
@@ -159,8 +172,9 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
     }
     $lasthhmm = undef;
 
-    next unless @days && s/^(\s*(\d+):(\d+))//;
+    next unless @days && s/^(\s*(\d+):(\d+)([ap]m)?)//i;
     my ($prefix, $hh, $mm) = ($1, $2, $3);
+    $hh += 12 if lc($4) eq 'pm';
     print STDERR "FOUND $hh:$mm\n" if $Opts{'d'};
 
     # If there's another timestamp in the middle of the row,
@@ -225,6 +239,7 @@ $QualTime = $QualTimeAM if defined $QualTimeAM;
       my $group = $groups[$i];
       #printf STDERR ("[%s] %d\n", $group, defined($group));
       next unless defined $group;
+      next if $group =~ /lunch/i;
 
       my(@classes, @sets);
       foreach (split(m#//#, $group)) {
