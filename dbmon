@@ -41,6 +41,7 @@ while true ; do
         if [ ${b,,} = $here ] ; then
           sb="sudo -iu runoffs"
         else
+          if [ x$local = xyes ] ; then continue; fi
           sb="ssh $ssh_ctl -oControlPath=$tmp/ssh.${bk} runoffs@${b,,}.local"
         fi
         label "> $bk" $sb stat -c%y Backups/Runoffs-$year-${h^^}
