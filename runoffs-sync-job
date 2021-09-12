@@ -6,7 +6,7 @@ cd $HOME
 h=$(hostname | cut -d. -f1)
 
 for b in ${bkhosts}; do
-  if [ $h = $b ] ; then continue; fi
+  if [ ${b,,} = ${h,,} ] ; then continue; fi
   bk=$(echo ${b,,} | sed -e 's/\(.\)[^-]*\(-\|$\)/\1/g')
 
   rsync -av --delete Dropbox/Runoffs-${year}/ ${b,,}.local.:Backups/Runoffs-${year}-${h^^}/ >rsync-${bk}.log 2>&1 &

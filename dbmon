@@ -22,7 +22,7 @@ while true ; do
     date +'Dropbox status %H:%M:%S'
     for h in $hosts; do
       hk=$(echo $h | sed -e 's/\(.\)[^-]*\(-\|$\)/\1/g')
-      if [ ${h,,} = $here ] ; then
+      if [ ${h,,} = ${here,,} ] ; then
         sj=""
         sr="sudo -iu runoffs"
       else
@@ -38,7 +38,7 @@ while true ; do
       for b in $bkhosts; do
         if [ $h = $b ] ; then continue; fi
         bk=$(echo $b | sed -e 's/\(.\)[^-]*\(-\|$\)/\1/g')
-        if [ ${b,,} = $here ] ; then
+        if [ ${b,,} = ${here,,} ] ; then
           sb="sudo -iu runoffs"
         else
           if [ x$local = xyes ] ; then continue; fi
