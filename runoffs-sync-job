@@ -3,7 +3,7 @@
 cd $HOME
 . ${HOME}/Dropbox/tools/runoffs-tools.cfg
 
-h=$(hostname)
+h=$(hostname | cut -d. -f1)
 
 for b in ${bkhosts}; do
   if [ $h = $b ] ; then continue; fi

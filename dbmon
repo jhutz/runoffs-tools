@@ -12,7 +12,7 @@ fi
 local=
 if [ "x$1" = "x-l" ] ; then local=yes ; fi
 
-here=$(hostname)
+here=$(hostname | cut -d. -f1)
 tmp=/run/user/$(id -u)
 if [ ! -d $tmp ] ; then tmp=/tmp; fi
 f=$(mktemp)
