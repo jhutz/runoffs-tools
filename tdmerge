@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # feed me the 'testday' TSV format, with at least these columns:
-# Class, Car #, Member #, Test Day Segment
+# Class, No., Member #, Test Day Segment
 
 use Text::CSV;
 
@@ -19,7 +19,7 @@ while ($hr = $IN->getline_hr(\*STDIN)) {
   $key = join('_', $class, $$hr{'Member #'});
   $day = substr($$hr{'Test Day Segment'}, 0, 3);
   #$Entries{$key}{$day} = $Days{$day} || 99;
-  $Entries{$key}{$day} = $$hr{'Car #'};
+  $Entries{$key}{$day} = $$hr{'No.'};
 }
 
 my $OUT = Text::CSV->new( {

@@ -33,9 +33,9 @@ sub parse_args () {
     die "Use at most one of -g -n, or -k\n";
   }
   if ($opts{n}) {
-    @KeyCols = ('Class','Car #');
+    @KeyCols = ('Class','No.');
   } elsif ($opts{g}) {
-    @KeyCols = ('Group', 'Class','Car #');
+    @KeyCols = ('Group', 'Class','No.');
   } elsif ($opts{k}) {
     @KeyCols = split(/,/, $opts{k});
   }
