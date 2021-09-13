@@ -1,0 +1,114 @@
+#!/usr/bin/perl
+
+use Getopt::Std;
+use IO::File;
+use Text::CSV;
+use strict;
+
+our @KeyCols = ('Class', 'Member #');
+our $DataCol = 'Sponsor';
+our $RewritePath;
+our %Sponsors;
+
+sub usage {
+  print STDERR @_, "\n" if @_;
+  print <<"EOF";
+usage: sponsorfix [-n | -g | -k key] [-s sponsor] [-r rewrite] data
+       sponsorfix -h
+  -r  Emit a patch (for reg_apply) applying given updates
+  -n  Use class+no instead of class+memberID as key
+  -g  Use group+class+no instead of class+memberID as key
+  -k  Use specified fields as keys (comma-separated)
+  -s  Use spcified field as sponsor field (default Sponsor)
+  -h  This help message
+
+  Registration data is read from STDIN.
+  Without -r, emits a rewrite file suitable for editing
+EOF
+  exit !!@_;
+}
+
+sub parse_args () {
+  my %opts;
+
+  getopts('ghnk:r:s:', \%opts) or usage("Invalid option!");
+  usage()    if $opts{h};
+  if ($opts{g} + $opts{n} + defined($opts{k}) > 1) {
+    die "Use at most one of -g -n, or -k\n";
+  }
+  if ($opts{n}) {
+    @KeyCols = ('Class','No.');
+  } elsif ($opts{g}) {
+    @KeyCols = ('Group', 'Class','No.');
+  } elsif ($opts{k}) {
+    @KeyCols = split(/,/, $opts{k});
+  }
+  $DataCol = $opts{s} if exists $opts{s};
+  $RewritePath = $opts{r} if exists $opts{r};
+
+  usage('Exactly one filename is required') unless @ARGV == 1;
+}
+
+
+parse_args;
+binmode STDOUT, ':utf8';
+autoflush STDERR 1;
+
+my $OUT = Text::CSV->new({ binary => 1, eol => "\n" });
+
+## Load rewrite table
+if ($RewritePath) {
+  my $R = IO::File->new($RewritePath, O_RDONLY) or die "$RewritePath: $!\n";
+  my $RC = new Text::CSV({ binary => 1, allow_whitespace => 1 });
+  while (my $cols = $RC->getline($R)) {
+    my($old, $new) = @$cols;
+    next if $old eq '' || $new eq '';
+    $Sponsors{$old} = $new;
+  }
+  $RC->error_diag();
+  $R->close;
+  $OUT->print(\*STDOUT, [qw[key field old new]]);
+}
+
+
+my($F, $IN);
+{
+  my $path = $ARGV[0];
+  $F = IO::File->new($path, O_RDONLY) or die "$path: $!\n";
+  
+  my $head = <$F>;
+  $IN = new Text::CSV( { binary => 1,
+      quote_space => 0,
+      quote_binary => 0,
+      ($head =~ /\t/) ? (
+        sep_char    => "\t",
+        quote_char  => ($head =~ /"/ ? '"' : undef),
+        always_quote => ($head =~ /^"/ ? 1 : 0),
+        escape_char => undef,
+      ) : ()
+    });
+  $IN->parse($head) or die "failed parsing data column headers\n";
+  my @head = $IN->fields();
+  die "No column $DataCol in input!\n" unless grep($_ eq $DataCol, @head);
+  $IN->column_names(@head);
+}
+
+while (my $hr = $IN->getline_hr($F)) {
+  my $sponsor = $$hr{$DataCol};
+  my @sponsors = split(m#\s*/\s*#, $sponsor);
+  if ($RewritePath) {
+    my $key = join('_', map($$hr{$_}, @KeyCols));
+    my $nsponsor = join('/', map($Sponsors{$_} // $_, @sponsors));
+    $OUT->print(\*STDOUT, [ $key, $DataCol, $sponsor, $nsponsor ]);
+  } else {
+    $Sponsors{$_}++ foreach @sponsors;
+  }
+}
+$IN->error_diag();
+$F->close;
+
+if (!$RewritePath) {
+  foreach (sort { lc($a) cmp lc($b) } keys %Sponsors) {
+    $OUT->print(\*STDOUT, [ $_, '' ]);
+  }
+}
