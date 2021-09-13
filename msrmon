@@ -1017,10 +1017,12 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
     # Set up columns
     fields = []
     header = {}
-    if not Options.csv_format:
+    if Options.tsv_format:
+        Options.csv_format = Options.tsv_format
+    elif not Options.csv_format:
         Options.csv_format = 'default'
     if Options.csv_format not in Config['csvFormats']:
-        raise KeyError("No CSV format '%s'" % Options.csv_format)
+        raise KeyError("No CSV/TSV format '%s'" % Options.csv_format)
     for field in Config['csvFormats'][Options.csv_format]:
         if not isinstance(field, dict):
             k = v = field
@@ -1053,7 +1055,7 @@ def show_assign_csv(recs, att_cache=None, mem_cache=None, fromdb=False):
         header.update((f,f) for f in fields if f not in header)
         fields.extend(sorted(Q.values()))
 
-    if Options.tsv:
+    if Options.tsv or (Options.tsv_format and not Options.csv):
         writer = csv.DictWriter(sys.stdout, fieldnames=fields,
                 extrasaction='ignore', quoting=csv.QUOTE_NONE,
                 delimiter='\t', quotechar=None)
@@ -1097,7 +1099,7 @@ def show_assign_results(recs, att_cache=None, mem_cache=None, fromdb=False):
     if Options.dump:
         dumpobj(recs)
         return
-    if Options.csv or Options.tsv or Options.csv_format:
+    if Options.csv or Options.tsv or Options.csv_format or Options.tsv_format:
         show_assign_csv(recs, att_cache=att_cache, mem_cache=mem_cache, fromdb=fromdb)
         return
 
@@ -1160,7 +1162,7 @@ def do_assigns():
         recs = [ msr_get_assign(item) for item in Options.items ]
     else:
         recs = msr_get_assign_list(cleanup=not Options.dump)
-        if Options.custom_fields or Options.csv or Options.tsv or Options.csv_format:
+        if Options.custom_fields or Options.csv or Options.tsv or Options.csv_format or Options.tsv_format:
             mem_cache = msr_get_member_dict(cleanup=not Options.dump)
         att_cache = msr_get_attendee_dict(cleanup=not Options.dump)
     show_assign_results(recs, att_cache, mem_cache)
@@ -1744,8 +1746,9 @@ def process_args():
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
     p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
-    p.add_argument('--tsv', action='store_true', help='Export tab-separated values')
-    p.add_argument('--csv-format', help='CSV/TSV file format name')
+    p.add_argument('-C', '--csv-format', help='CSV file format name (implies --csv)')
+    p.add_argument('-t', '--tsv', action='store_true', help='Export tab-separated values')
+    p.add_argument('-T', '--tsv-format', help='TSV file format name (implies --tsv)')
     p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_assigns)
@@ -1770,8 +1773,9 @@ def process_args():
     p.add_argument('--vehicle-questions', action='store_true', help='Include vehicle questions')
     p.add_argument('--custom-fields',     action='store_true', help='Include custom fields')
     p.add_argument('-c', '--csv', action='store_true', help='Export CSV')
-    p.add_argument('--tsv', action='store_true', help='Export tab-separated values')
-    p.add_argument('--csv-format', help='CSV/TSV file format name')
+    p.add_argument('-C', '--csv-format', help='CSV file format name (implies --csv)')
+    p.add_argument('-t', '--tsv', action='store_true', help='Export tab-separated values')
+    p.add_argument('-T', '--tsv-format', help='TSV file format name (implies --tsv)')
     p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Show raw data')
     p.set_defaults(_func = do_entries)
