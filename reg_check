@@ -67,7 +67,8 @@ usage: reg_check [-dqv] [-Q qgroups] [-R rgroups] [-o out [-kt]] [file...]
 
   -o  output corrected data to file
   -k  add entry key column
-  -t  output in tab-separated format
+  -t  output in tab-separated format (default)
+  -T  output in comma-separated format
 EOF
   exit !!@_;
 }
@@ -81,7 +82,7 @@ sub parse_args () {
   $QUIET++   if $opts{q};
   $VERBOSE++ if $opts{v};
   $KeyOUT++  if $opts{k};
-  $TabOUT = $opts{t} ? "\t" : ',';
+  $TabOUT = ($opts{T} && !$opts{t}) ? ',' : "\t";
 
   @QGroups = split(' ', $opts{Q}) if exists $opts{Q};
   @RGroups = split(' ', $opts{R}) if exists $opts{R};
