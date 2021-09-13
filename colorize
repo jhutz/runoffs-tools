@@ -4,6 +4,11 @@
 
 use Text::CSV;
 
+if (@ARGV) {
+  print STDERR "Usage: colorize < data > patch\n";
+  exit 1;
+}
+
 my @StdColors = (qw(Aqua Black Blue Brown Cream Gold Gray Green), 'Lt Blue',
   qw(Magenta Maroon Orange Pewter Pink Purple),
   qw(Red Silver Teal Turquoise Violet White Yellow));
