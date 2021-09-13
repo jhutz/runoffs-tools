@@ -17,7 +17,7 @@ use vars qw($format $carno $class $name);
 #@RGroups = qw(FE/FE2 FA/FB);
 
 %YearClasses   = map(($_ => 1), qw(EP FP HP SM T1 T2 T3 T4));
-%EngineClasses = map(($_ => 1), qw(F5 FA FB FF P1 P2));
+%EngineClasses = map(($_ => 1), qw(F5 FA FB FF FX P1 P2));
 
 my %FM_Word = map(($_ => 1), qw[Star Formula Mazda FM]);
 %FixedMM = (

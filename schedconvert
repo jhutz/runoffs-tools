@@ -39,6 +39,7 @@ foreach my $cat (keys %Categories) {
 our %Notes = (
   'FC' => 'All engines Ford',
   'FE' => 'All engines Mazda',
+  'FE2' => 'All engines Mazda',
   'FV' => 'All engines Volkswagen',
   'S2' => 'All engines Ford',
 );
