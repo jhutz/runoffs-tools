@@ -193,6 +193,14 @@ sub v_comma ($$$) {
   $value;
 }
 
+sub v_comma_inc ($$$) {
+  my($field, $value, $fields) = @_;
+  if ($value =~ s#\s*[\s,]\s*(inc|llc)(\.|\b)# $1#ig) {
+    problem('*', "$field: clean up Inc/LLC") if $VERBOSE;
+  }
+  $value;
+}
+
 sub v_comma_sp ($$$) {
   my($field, $value, $fields) = @_;
   if ($value =~ s#\s*,\s*# #g) {
@@ -335,12 +343,12 @@ sub v_miata ($$$) {
   member   => [ \&v_nonblank,  \&v_memberid,  ],
   region   => [ \&v_nonblank,                 ], #XXX should check abbrev?
   color    => [ \&v_comma,                    ],
-  sponsor  => [ \&v_comma,     \&v_slash,     ],
-  make     => [ \&v_fixed_make,  \&v_nonblank,  \&v_namecaps,  ],
-  model    => [ \&v_miata, \&v_fixed_model, \&v_nonblank,  \&v_namecaps, ],
+  sponsor  => [ \&v_comma_inc, \&v_comma,     \&v_slash, ],
+  make     => [ \&v_fixed_make, \&v_nonblank, \&v_namecaps,  ],
+  model    => [ \&v_miata,     \&v_fixed_model, \&v_nonblank,  \&v_namecaps, ],
   engine   => [ \&v_nb_engine, \&v_namecaps,  ],
-  ht       => [ \&v_comma_sp, \&v_nonblank, \&v_namecaps ],
-  mm       => [ \&v_fixed_mm, \&v_nonblank, \&v_namecaps, ],
+  ht       => [ \&v_comma_sp,  \&v_nonblank,  \&v_namecaps ],
+  mm       => [ \&v_fixed_mm,  \&v_nonblank,  \&v_namecaps, ],
 );
 
 parse_args;
