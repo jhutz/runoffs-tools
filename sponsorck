@@ -62,7 +62,7 @@ if ($RewritePath) {
   my $RC = new Text::CSV({ binary => 1, allow_whitespace => 1 });
   while (my $cols = $RC->getline($R)) {
     my($old, $new) = @$cols;
-    next if $old eq '' || $new eq '';
+    next if $old eq '' || $new eq '' || $new eq '-';
     $Sponsors{$old} = $new;
   }
   $RC->error_diag();
