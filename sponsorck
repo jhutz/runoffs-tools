@@ -4,29 +4,32 @@ use Getopt::Std;
 use IO::File;
 use Text::CSV;
 use strict;
+use vars qw($Mode $DataFile $SponsorFile);
+use vars qw(%Sponsors %Alt);
 
 our @KeyCols = ('Class', 'Member #');
 our $DataCol = 'Sponsor';
-our $RewritePath;
-our %Sponsors;
-our %Extra;
-our $Incr;
+our $MaxLen  = 35;
 
-sub usage {
+sub usage (@) {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
-usage: sponsorfix [-n | -g | -k key] [-s sponsor] [-r rewrite] data
-       sponsorfix -h
-  -i  Incremental mode - add new sponsors to rewrite list
-  -r  Emit a patch (for reg_apply) applying given updates
+usage: $0 [-i | -u | -p] [-n | -g | -k key] [-F field] [-M max] data [sponsors]
+       $0 -h
+Operating Modes:
+  -i  Incremental - only list new sponsors
+  -u  Update - merge new sponsors into list
+  -p  Patch - generate reg_apply patch with rewritten sponsors
+  Sponsor input file required for -[iup]
+  Default mode is to list all sponsors
+
+Options:
   -n  Use class+no instead of class+memberID as key
   -g  Use group+class+no instead of class+memberID as key
   -k  Use specified fields as keys (comma-separated)
-  -s  Use spcified field as sponsor field (default Sponsor)
-  -h  This help message
-
-  Registration data is read from STDIN.
-  Without -r, emits a rewrite file suitable for editing
+  -F  Use spcified field as sponsor field (default $DataCol)
+  -M  Set maximum sponsor length (default $MaxLen)
+  -h  Print this help message
 EOF
   exit !!@_;
 }
@@ -34,10 +37,11 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('ghink:r:s:', \%opts) or usage("Invalid option!");
+  getopts('hgik:npus:F:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
+
   if ($opts{g} + $opts{n} + defined($opts{k}) > 1) {
-    die "Use at most one of -g -n, or -k\n";
+    usage "Use at most one of -g -n, or -k";
   }
   if ($opts{n}) {
     @KeyCols = ('Class','No.');
@@ -46,41 +50,66 @@ sub parse_args () {
   } elsif ($opts{k}) {
     @KeyCols = split(/,/, $opts{k});
   }
-  $DataCol = $opts{s} if exists $opts{s};
-  $RewritePath = $opts{r} if exists $opts{r};
-  $Incr = $opts{i};
+  $DataCol = $opts{F} if exists $opts{F};
 
-  die "Incremental mode requires -r\n" if $Incr && !$RewritePath;
-  usage('Exactly one filename is required') unless @ARGV == 1;
+  if ($opts{i} + $opts{u} + $opts{p} > 1) {
+    usage "Use at most one if -i, -u, or -p";
+  }
+  $Mode = 'i' if $opts{i};
+  $Mode = 'u' if $opts{u};
+  $Mode = 'p' if $opts{p};
+
+  usage "Input filename required" unless @ARGV;
+  usage "Sponsor input file required for -[iup]" if $Mode && @ARGV < 2;
+  usage "Sponsor input file not used without -[iup]" if !$Mode && @ARGV > 1;
+  usage "Too many arguments" if @ARGV > 2;
+
+  ($DataFile, $SponsorFile) = @ARGV;
+}
+
+sub gen_alts ($) {
+  # XXX 1) Drop Inc/LLC/....
+  # XXX 2) drop whitespace
+  # XXX 3) shorten Motorsports
+  # XXX 4) shorten Motorsports  +  drop whitespace
+  # XXX 5) drop Motorsports, Racing, ...?
+  # XXX 6) drop Motorsports, Racing, ...?  +  drop whitespace
+  return ();
+}
+
+sub rewrite (@) {
+  my @sponsors = @_;
+  return join('/', map($Sponsors{$_} // $_, @sponsors));
 }
 
 
 parse_args;
-binmode STDOUT, ':utf8';
-autoflush STDERR 1;
 
-my $OUT = Text::CSV->new({ binary => 1, eol => "\n" });
+## Load existing sponsor table
+if ($SponsorFile) {
+  my $S = IO::File->new($SponsorFile, O_RDONLY) or die "$SponsorFile: $!\n";
+  my $SC = new Text::CSV({ binary => 1, allow_whitespace => 1 });
+  while (my $cols = $SC->getline($S)) {
+    my($old, $new, @alts) = @$cols;
+    next if $old eq '' || $new eq '';
+    next if $Mode eq 'p' && $new eq '-';
 
-## Load rewrite table
-if ($RewritePath) {
-  my $R = IO::File->new($RewritePath, O_RDONLY) or die "$RewritePath: $!\n";
-  my $RC = new Text::CSV({ binary => 1, allow_whitespace => 1 });
-  while (my $cols = $RC->getline($R)) {
-    my($old, $new, @extra) = @$cols;
-    next if $old eq '' || $new eq '' || ($new eq '-' && $Incr);
     $Sponsors{$old} = $new;
-    $Extra{$old} = [ @extra ] if @extra;
+    if ($Mode eq 'p') {
+      # alternate sponsor name behavior for patch mode:
+      @alts = gen_alts($new) if !@alts;  # empty means use default
+      shift @alts if $alts[0] eq '-';    # - means use nothing
+    }
+    $Alt{$old} = [ @alts ];
   }
-  $RC->error_diag();
-  $R->close;
-  $OUT->print(\*STDOUT, [qw[key field old new]]) unless $Incr;
+  $SC->error_diag();
+  $S->close;
 }
 
-
+## Set up input file
 my($F, $IN);
 {
-  my $path = $ARGV[0];
-  $F = IO::File->new($path, O_RDONLY) or die "$path: $!\n";
+  $F = IO::File->new($DataFile, O_RDONLY) or die "$DataFile: $!\n";
   
   my $head = <$F>;
   $IN = new Text::CSV( { binary => 1,
@@ -99,22 +128,46 @@ my($F, $IN);
   $IN->column_names(@head);
 }
 
+# Set up for output
+binmode STDOUT, ':utf8';
+autoflush STDERR 1;
+my $OUT = Text::CSV->new({ binary => 1, eol => "\n" });
+$OUT->print(\*STDOUT, [qw[key field old new]]) if $Mode eq 'p';
+
+# Process the data
 while (my $hr = $IN->getline_hr($F)) {
   my $sponsor = $$hr{$DataCol};
   my @sponsors = split(m#\s*/\s*#, $sponsor);
-  if ($RewritePath && !$Incr) {
+  if ($Mode eq 'p') {
+    # Patch mode -- compute a new sponsor and print a diff
     my $key = join('_', map($$hr{$_}, @KeyCols));
-    my $nsponsor = join('/', map($Sponsors{$_} // $_, @sponsors));
+    my $nsponsor = rewrite(@sponsors);
+    if (len($nsponsor) > $MaxLen) {
+      printf STDERR ("%-6s %3s %-9s %-30s %2d %s\n",
+        @$hr{'Class', 'No.', 'Member #', 'Name'}, len($nsponsor), $nsponsor);
+    }
+    next if $nsponsor eq $sponsor;
     $OUT->print(\*STDOUT, [ $key, $DataCol, $sponsor, $nsponsor ]);
+  } elsif ($Mode eq 'i') {
+    # Incremental mode - just emit new sponsors
+    foreach (grep(!exists($Sponsors{$_}), @sponsors)) {
+      $Sponsors{$_} = '';
+      print "$_\n";
+    }
   } else {
+    # Generate/update modes
     $Sponsors{$_} //= '' foreach @sponsors;
   }
 }
 $IN->error_diag();
 $F->close;
 
-if (!$RewritePath || $Incr) {
-  foreach (sort { lc($a) cmp lc($b) } keys %Sponsors) {
-    $OUT->print(\*STDOUT, [ $_, $Sponsors{$_}, @{$Extra{$_} // []} ]);
+if (!$Mode) {
+  # Generate mode - just print the list of sponsors
+  print map("$_\n", sort { lc($a) cmp lc($b) } keys %Sponsors);
+} elsif ($Mode eq 'u') {
+  # Update mode - print an updated list
+  foreach (sort { lc($a) cmp lc($b) || $a cmp $b } keys %Sponsors) {
+    $OUT->print(\*STDOUT, [ $_, $Sponsors{$_}, @{$Alt{$_} // []} ]);
   }
 }
