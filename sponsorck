@@ -2,9 +2,10 @@
 
 use Getopt::Std;
 use IO::File;
+use List::Util qw(max);
 use Text::CSV;
 use strict;
-use vars qw($Mode $DataFile $SponsorFile);
+use vars qw($Mode $DataFile $SponsorFile $DEBUG);
 use vars qw(%Sponsors %Alt);
 
 our @KeyCols = ('Class', 'Member #');
@@ -29,6 +30,7 @@ Options:
   -k  Use specified fields as keys (comma-separated)
   -F  Use spcified field as sponsor field (default $DataCol)
   -M  Set maximum sponsor length (default $MaxLen)
+  -d  Enable debugging output
   -h  Print this help message
 EOF
   exit !!@_;
@@ -37,8 +39,9 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('hgik:npus:F:', \%opts) or usage("Invalid option!");
-  usage()    if $opts{h};
+  getopts('dhgik:npus:F:', \%opts) or usage("Invalid option!");
+  usage()  if $opts{h};
+  $DEBUG++ if $opts{d};
 
   if ($opts{g} + $opts{n} + defined($opts{k}) > 1) {
     usage "Use at most one of -g -n, or -k";
@@ -77,9 +80,136 @@ sub gen_alts ($) {
   return ();
 }
 
-sub rewrite (@) {
-  my @sponsors = @_;
-  return join('/', map($Sponsors{$_} // $_, @sponsors));
+# Clean whitespace from a string
+# The goal is to avoid running two words or numbers together with
+# no visible demarcation. So we only remove whitespace which is
+# preceded by a lowercase letter and followed by an uppercase one.
+# Ideally, we should handle other cases, but in practice, it just
+# doesn't come up often enough to worry about.
+sub clean_ws ($) { $_[0] =~ s/(?<=[a-z])\s+(?=[A-Z])//rg }
+
+# Join sponsor names, possibly removing whitespace.
+# If the joined string is too long, but a version without
+# whitespace is acceptable, then return the latter.
+sub join_sponsors (@) {
+  my $str = join('/', map($$_[0], @_));
+  if (length($str) > $MaxLen) {
+    my $wstr = clean_ws($str);
+    if (length($wstr) <= $MaxLen) {
+      #print STDERR "clean_ws [$str] => [$wstr]\n" if $DEBUG;
+      return $wstr;
+    }
+  }
+  return $str;
+}
+
+# Try building a valid sponsor string that is short enough.
+# We maintain a "column" for each sponsor, which initially contains
+# the (remapped) sponsor name, with any alternate names stacked above
+# it. The current sponsor string, then, is the result of joining the
+# bottom-most items from each column, using join_sponsors(), above,
+# which also considers the possibility of removing whitespace to
+# make everything fit.
+#
+# If the string is too long, we try removing the bottom-most name
+# from each column, in favor of a (shorter) alternate from above,
+# if one exists.  This process is repeated from right to left (on the
+# theory that sponsors listed first are more important), testing at
+# each step to see if the string is short enough. If, after removing
+# one name from each column, the string is still too long, then we
+# repeat the process. This continues until we get a legal string or
+# run out of alternate names.
+#
+# Once we have a string that is short enough, we see if we can undo
+# some of the shortening, putting back names we dropped. This proceeds
+# in exactly the reverse order of the above process, proceeding left
+# to right starting with the last name we dropped. To support this,
+# each column has a corresponding dropped-name stack. We take the name
+# from the top of that stack and try reinserting it at the bottom of
+# the column. If the string is still short enough, the reinstered name
+# is kept. If not, both that name and all remaining dropped alternates
+# stack are discarded.
+sub bs_debug ($$$) {
+  my($names, $saved, $debug) = @_;
+  $$debug{wid} //= [ map(max(map(length($_), @$_)), @$names) ];
+  if (!exists($$debug{fmt})) {
+    $$debug{fmt} = join('  ', '%-3s', map("%-${_}s", @{$$debug{wid}})) . "\n";
+    $$debug{fmt} =~ s/\%-(\d+)s$/\%$1s/;
+    printf STDERR $$debug{fmt}, '', map($$_[0], @$names);
+    printf STDERR $$debug{fmt}, '', map('=' x $_, @{$$debug{wid}});
+  }
+
+  my $h = max(map(scalar(@$_), @$names));
+  while ($h-- > 0) {
+    printf STDERR $$debug{fmt}, $h ? '' : '-->', map($$_[$h], @$names);
+  }
+  $h = max(map(scalar(@$_), @$saved));
+  while ($h-- > 0) {
+    printf STDERR $$debug{fmt}, '', map($$_[$h], @$saved);
+  }
+  my $s = join_sponsors(@$names);
+  my $l = length($s);
+  printf STDERR "%-4s [%s]\n\n", "($l)", $s;
+}
+sub build_sponsor (@) {
+  my @names = map([ $Sponsors{$_} // $_, @{$Alt{$_} // []} ], @_);
+  my @saved = map([], @_);
+  my $debug = {};
+  my $i;
+
+  if ($DEBUG) {
+    print STDERR "build_sponsor(", join(", ", map("[$_]", @_)), "):\n";
+    bs_debug(\@names, \@saved, $debug);
+  }
+  while (length(join_sponsors(@names)) > $MaxLen && grep(@$_ > 1, @names)) {
+    # Still too long; look for a name we can abbreviate to shorten it
+    # The rule here is to abbreviate the rightmost sponsor first, on
+    # the theory that sponsors listed first are more important.
+    # However, use all first-preference alternates before moving on
+    # to lower-preference alternates.
+    print STDERR "still too long...\n" if $DEBUG;
+    foreach $i (reverse 0 .. $#names) {
+      print STDERR "trying column $i:" if $DEBUG;
+      if (@{$names[$i]} <= 1) {
+        print STDERR " no alternates left\n" if $DEBUG;
+        # No alternates left
+        push(@{$saved[$i]}, undef);
+        next;
+      }
+      print STDERR "\n" if $DEBUG;
+      push(@{$saved[$i]}, shift @{$names[$i]});
+      bs_debug(\@names, \@saved, $debug) if $DEBUG;
+      last if length(join_sponsors(@names)) <= $MaxLen;
+    }
+  }
+
+# while (length(join_sponsors(@names)) < $MaxLen && grep(@$_, @saved)) {
+#   # It's shorter than the maximum length. See if there is are any
+#   # more-preferred alternates that still fit.
+#   # Note that some columns of the save stack may have one or more
+#   # 'undef' falues
+#   while ($i < @saved) {
+#     next unless @{$saved[$i]};   # nothing left in the stack
+#     my $alt = pop @{$saved[$i]};
+#     next unless defined $alt;    # no alternate for this name
+#     unshift(@{$names[$i]}, $alt);
+#     my $l = length(join_sponsors(@names));
+#     last if $l == $MaxLen; # No more work to do here
+#     next if $l < $MaxLen;  # It fits; keep it
+#     # It does not fit, so no later alternates will, either
+#     # Pop it back off, and discard the whole save stack.
+#     shift @{$names[$i]};
+#     $saved[$i] = [];
+#   } continue {
+#     $i++;
+#   }
+#   $i = 0; # reset for next pass
+# }
+  
+  # This either fits with as little shortening as we can get away with,
+  # or it does not fit but is as close as we could get it.
+  print STDERR "\n" if $DEBUG;
+  return join_sponsors(@names);
 }
 
 
@@ -100,7 +230,7 @@ if ($SponsorFile) {
       @alts = gen_alts($new) if !@alts;  # empty means use default
       shift @alts if $alts[0] eq '-';    # - means use nothing
     }
-    $Alt{$old} = [ @alts ];
+    $Alt{$old} = [ grep($_ ne '', @alts) ];
   }
   $SC->error_diag();
   $S->close;
@@ -130,6 +260,7 @@ my($F, $IN);
 
 # Set up for output
 binmode STDOUT, ':utf8';
+binmode STDERR, ':utf8';
 autoflush STDERR 1;
 my $OUT = Text::CSV->new({ binary => 1, eol => "\n" });
 $OUT->print(\*STDOUT, [qw[key field old new]]) if $Mode eq 'p';
@@ -137,14 +268,15 @@ $OUT->print(\*STDOUT, [qw[key field old new]]) if $Mode eq 'p';
 # Process the data
 while (my $hr = $IN->getline_hr($F)) {
   my $sponsor = $$hr{$DataCol};
+  next if $sponsor eq '';
   my @sponsors = split(m#\s*/\s*#, $sponsor);
   if ($Mode eq 'p') {
     # Patch mode -- compute a new sponsor and print a diff
     my $key = join('_', map($$hr{$_}, @KeyCols));
-    my $nsponsor = rewrite(@sponsors);
-    if (len($nsponsor) > $MaxLen) {
+    my $nsponsor = build_sponsor(@sponsors);
+    if (length($nsponsor) > $MaxLen) {
       printf STDERR ("%-6s %3s %-9s %-30s %2d %s\n",
-        @$hr{'Class', 'No.', 'Member #', 'Name'}, len($nsponsor), $nsponsor);
+        @$hr{'Class', 'No.', 'Member #', 'Name'}, length($nsponsor), $nsponsor);
     }
     next if $nsponsor eq $sponsor;
     $OUT->print(\*STDOUT, [ $key, $DataCol, $sponsor, $nsponsor ]);
