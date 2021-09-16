@@ -71,13 +71,23 @@ sub parse_args () {
 }
 
 sub gen_alts ($) {
-  # XXX 1) Drop Inc/LLC/....
-  # XXX 2) drop whitespace
-  # XXX 3) shorten Motorsports
-  # XXX 4) shorten Motorsports  +  drop whitespace
-  # XXX 5) drop Motorsports, Racing, ...?
-  # XXX 6) drop Motorsports, Racing, ...?  +  drop whitespace
-  return ();
+  my($str) = @_;
+  my(@alts);
+
+  push(@alts, $str) if $str =~ s/\s+(inc|llc)$//i;
+  if ($str =~ s/\s+motorsports$//i) {
+    push(@alts, "$str Mtrsprts", $str);
+  } elsif ($str =~ s/(?<![[:upper:]])Motorsports$//) {
+    push(@alts, "${str}Mtrsprts", $str);
+  } else {
+    foreach (qw(Racing)) {
+      if ($str =~ s/\s+$_$//i || $str =~ s/(?<![[:upper:]])$_$//) {
+        push(@alts, $str);
+        last;
+      }
+    }
+  }
+  return @alts;
 }
 
 # Clean whitespace from a string
@@ -223,6 +233,7 @@ if ($SponsorFile) {
     my($old, $new, @alts) = @$cols;
     next if $old eq '' || $new eq '';
     next if $Mode eq 'p' && $new eq '-';
+    @alts = grep($_ ne '', @alts);
 
     $Sponsors{$old} = $new;
     if ($Mode eq 'p') {
@@ -230,7 +241,7 @@ if ($SponsorFile) {
       @alts = gen_alts($new) if !@alts;  # empty means use default
       shift @alts if $alts[0] eq '-';    # - means use nothing
     }
-    $Alt{$old} = [ grep($_ ne '', @alts) ];
+    $Alt{$old} = [ @alts ];
   }
   $SC->error_diag();
   $S->close;
