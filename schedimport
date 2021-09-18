@@ -1,0 +1,202 @@
+#!/usr/bin/perl
+
+use IO::File;
+use POSIX qw(mktime strftime);
+use POSIX::strptime qw(strptime);
+use List::Util qw(min max uniq uniqnum);
+use Text::CSV;
+use strict;
+use vars qw(%Cfg %Sessions %SesType %SesClasses);
+use vars qw(%Qual %Race %Test %TestGroup);
+use vars qw(@Classes @Groups @TestDays);
+
+our @ReqCols = qw(cla_class ses_type ses_planned_start);
+
+sub gripe ($@) {
+  my($hr, @msg) = @_;
+  my $pfx = "Line $$hr{line}";
+  $pfx .= " [$$hr{cls_key}]" if exists $$hr{cls_key};
+  print STDERR $pfx, @msg, "\n";
+}
+
+sub date ($) { mktime(0, 0, 0, (localtime($_[0]))[3..7], -1) }
+sub wday ($) { strftime('%a', localtime($_[0])) }
+sub fmt_time ($) { strftime('%m/%d/%Y %H:%M', localtime($_[0])) }
+sub parse_time ($$) {
+  my($hr, $str) = @_;
+  if ($str =~ m#^\d+/\d+/\d+\s+\d+:\d\d\s*[ap]m$#i) {
+    return mktime((strptime($str, '%m/%d/%y %I:%M %p'))[0..7], -1);
+  } elsif ($str =~ m#^\d+/\d+/\d+\s+\d+:\d+\s*[ap]m$#i) {
+    return mktime((strptime($str, '%m/%d/%Y %I:%M %p'))[0..7], -1);
+  } elsif ($str =~ m#^\d+/\d+/\d+\s+\d+:\d+(\s*[ap]m)?$#i) {
+    return mktime((strptime($str, '%m/%d/%Y %H:%M'))[0..7], -1);
+  } else {
+    gripe($hr, "Bad timestamp '$str'");
+    return undef;
+  }
+}
+
+## Load configuration
+{
+  my $cfg = "$ENV{HOME}/runoffs/Results/runoffs-tools.cfg";
+  my $F = IO::File->new($cfg, O_RDONLY) or die "$cfg: $!\n";
+  while (<$F>) {
+    s/\s*$//;
+    next unless s/^\s*(\w+)=\s*//;
+    my $k = $1;
+    s/^'([^']*)'$/$1/ || s/^"([^"]*)"$/$1/;
+    $Cfg{$k} = $_;
+  }
+  $F->close;
+}
+
+
+## Set up input file
+my($IN);
+{
+  my $head = <STDIN>;
+  $IN = new Text::CSV( { binary => 1,
+      quote_space => 0,
+      quote_binary => 0,
+      ($head =~ /\t/) ? (
+        sep_char    => "\t",
+        quote_char  => ($head =~ /"/ ? '"' : undef),
+        always_quote => ($head =~ /^"/ ? 1 : 0),
+        escape_char => undef,
+      ) : ()
+    });
+  $IN->parse($head) or die "failed parsing data column headers\n";
+  my @head = $IN->fields();
+  my @missing;
+  foreach my $c (@ReqCols) {
+    push(@missing, $c) if !grep($_ eq $c, @head);
+  }
+  die "Missing column(s) " . join(', ', @missing) . "\n" if @missing;
+  $IN->column_names(@head);
+}
+
+# Process session data input.
+# This directly gets us qual and race times for each class.
+# It also gets us a list of sessions and classes are in each.
+while (my $hr = $IN->getline_hr(\*STDIN)) {
+  $$hr{line} = $.;
+
+  my $stamp = parse_time($hr, $$hr{ses_planned_start}) or next;
+  my $type = $$hr{ses_type};
+  my $class = $$hr{cla_class};
+
+  $SesType{$stamp} = $type;
+  push(@{$Sessions{$stamp} //= []}, $class);
+
+  if ($type eq 'Qualifying') {
+    push(@{$Qual{$class} //= []}, $stamp);
+
+  } elsif ($type eq 'Race') {
+    $Race{$class} = $stamp;
+
+  } elsif ($type ne 'Test') {
+    gripe($hr, ": Unknown session type $type");
+  }
+}
+@Classes = sort(uniq(grep(!m#/#, keys %Qual, keys %Race)));
+print STDERR "Classes:  ", join(', ', @Classes), "\n";
+
+
+# Process the compiled group session data.
+# This gets us qual and race times for each multi-class group
+foreach my $stamp (sort(keys %Sessions)) {
+  my $type = $SesType{$stamp};
+  my @classes = @{$Sessions{$stamp}};
+  next unless @classes > 1 || $type eq 'Test';
+  my $group = join('/', sort @classes);
+
+  if ($type eq 'Test') {
+    push(@{$Test{$group} //= []}, $stamp);
+
+  } elsif ($type eq 'Qualifying') {
+    push(@{$Qual{$group} //= []}, $stamp);
+
+  } elsif ($type eq 'Race') {
+    $Race{$group} = $stamp;
+  }
+}
+
+# Qual groups don't _always_ qualify together; sometimes they are
+# together one day and separate on others. So, actually use the
+# times for one of the classes in the group, but replace some of
+# them with undef.
+foreach my $class (grep(!m#/#, keys %Qual)) {
+  @{$Qual{$class}} = sort @{$Qual{$class}};
+}
+foreach my $group (grep(m#/#, keys %Qual)) {
+  my($class) = split(m#/#, $group);
+  my %times = map(($_ => 1), @{$Qual{$group}});
+  $Qual{$group} = [ map($times{$_} ? $_ : undef, @{$Qual{$class}}) ];
+}
+
+@Groups  = sort(uniq(grep(m#/#,  keys %Qual, keys %Race)));
+print STDERR "Groups:   ", join(', ', @Groups), "\n";
+
+
+# Analyze test day sessions, to arrive at names and group numbers for
+# each test day. Normally, test days are named by the day of the week.
+# Groups are numbered based on the order of each group's first session
+# of the day, with the numbering restarting for each day.
+{
+  my %test_date;
+
+  # Figure out which test groups run on which dates, and what is
+  # the earliest session for each group on each date it runs.
+  foreach my $group (keys %Test) {
+    my %times = map(($_ => date($_)), @{$Test{$group}});
+    foreach my $date (uniqnum values %times) {
+      $test_date{$date}{$group} = min(grep($times{$_} == $date, keys %times));
+    }
+  }
+
+  # Now process the test dates in order to figure out what order the
+  # groups run in and assign an appropriate group number to each class.
+  print STDERR "Test Days:\n";
+  foreach my $date (sort(keys %test_date)) {
+    my $groups = $test_date{$date};
+    my $day = wday($date);
+    push(@TestDays, $day);
+    my @groups = sort { $$groups{$a} <=> $$groups{$b} } keys %$groups;
+    print STDERR ("  $day: ",
+      join('; ', map("$_: $groups[$_-1]", 1..@groups)), "\n");
+    foreach my $i (0 .. @groups - 1) {
+      my $group = $groups[$i];
+      foreach my $class (split(m#/#, $group)) {
+        $TestGroup{$class}{$day} = $i + 1;
+      }
+    }
+  }
+}
+
+
+my $OUT = Text::CSV->new({
+    binary => 1, eol => "\r\n",
+    quote_space => 0,
+    quote_binary => 0,
+    sep_char => "\t",
+  });
+$OUT->column_names(
+  'Class', map("Qual $_", 1 .. max(map(scalar(@$_), values %Qual))),
+  'Race', 'Notes', 'Title',
+  map("$_ TG", @TestDays),
+);
+
+$OUT->print(\*STDOUT, [ $OUT->column_names() ]);
+foreach my $class (@Classes, @Groups) {
+  # sort class qual sessions now. qgroup qual sessions are already sorted
+  my @quals = @{$Qual{$class} // []};
+  $OUT->print_hr(\*STDOUT, { Class => $class =~ s#\bF5/FF\b#FF/F5#r,
+      map(
+        defined($quals[$_-1]) ? ("Qual $_" => fmt_time($quals[$_-1])) : (),
+        1 .. @quals),
+      defined($Race{$class}) ? ('Race' => fmt_time($Race{$class})) : (),
+      map(("$_ TG" => $TestGroup{$class}{$_}), keys %{$TestGroup{$class}}),
+      Notes => $Cfg{"${class}_Notes"},
+      Title => $Cfg{"${class}_Title"},
+    });
+}
