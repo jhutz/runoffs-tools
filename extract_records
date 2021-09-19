@@ -1,0 +1,76 @@
+#!/usr/bin/perl
+
+use IO::File;
+use List::Util qw(min);
+use Text::CSV;
+use strict;
+use vars qw(%Race %Qual);
+
+# No Name Qn 'Best Time'
+
+sub parse_lap_time ($) {
+  return undef unless $_[0] =~ /^(\d*):(\d+)(?:\.(\d+))?$/;
+  return ((60000 * $1) + (1000 * $2) + $3) || undef;
+}
+
+sub update_rec ($$$$) {
+  my($table, $class, $hr, $time) = @_;
+  return unless defined $time;
+  return if exists $$table{$class} && $$table{$class}{ms} < $time;
+  my $ms  = $time % 1000;
+  my $sec = int($time / 1000) % 60;
+  my $min = int($time / 60000);
+  $$table{$class} = {
+    Class => $class,
+    Car => $$hr{No},
+    Name => $$hr{Name},
+    Time => sprintf("%d:%02d.%03d", $min, $sec, $ms),
+    ms => $time,
+  };
+}
+
+foreach my $path (@ARGV) {
+  my $file = ($path =~ s#.*/##r);
+  my $class = (split(' ', $file))[0];
+  my $F = IO::File->new($path, O_RDONLY) or die "$path: $!\n";
+  my $head = <$F>;
+
+  my $IN = new Text::CSV( { binary => 1,
+      quote_space => 0,
+      quote_binary => 0,
+      ($head =~ /\t/) ? (
+        sep_char    => "\t",
+        quote_char  => ($head =~ /"/ ? '"' : undef),
+        always_quote => ($head =~ /^"/ ? 1 : 0),
+        escape_char => undef,
+      ) : ()
+    });
+  $IN->parse($head) or die "$file: failed parsing data column headers\n";
+  $IN->column_names($IN->fields());
+
+  while (my $hr = $IN->getline_hr($F)) {
+    my @qtimes = grep(defined($_), map(parse_lap_time($$hr{$_}),
+        grep(/^Q\d+$/, keys %$hr)));
+    update_rec(\%Qual, $class, $hr, min(@qtimes)) if @qtimes;
+    update_rec(\%Race, $class, $hr, parse_lap_time($$hr{'Best Time'}));
+  }
+}
+
+my $OUT = Text::CSV->new({
+    binary => 1, eol => "\r\n",
+    quote_space => 0,
+    quote_binary => 0,
+    sep_char => "\t",
+  });
+$OUT->column_names(qw(Class Time Car Name));
+
+print "** Qualifying Lap Records **\r\n";
+$OUT->print(\*STDOUT, [$OUT->column_names()]);
+foreach my $class (sort keys %Qual) {
+  $OUT->print_hr(\*STDOUT, $Qual{$class});
+}
+print "\n** Race Lap Records **\r\n";
+$OUT->print(\*STDOUT, [$OUT->column_names()]);
+foreach my $class (sort keys %Race) {
+  $OUT->print_hr(\*STDOUT, $Race{$class});
+}
