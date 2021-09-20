@@ -273,14 +273,17 @@ my($F, $IN);
 binmode STDOUT, ':utf8';
 binmode STDERR, ':utf8';
 autoflush STDERR 1;
-my $OUT = Text::CSV->new({ binary => 1, eol => "\n" });
+my $OUT = Text::CSV->new({ binary => 1, eol => "\n",
+    quote_space => 0,
+    quote_binary => 0,
+  });
 $OUT->print(\*STDOUT, [qw[key field old new]]) if $Mode eq 'p';
 
 # Process the data
 while (my $hr = $IN->getline_hr($F)) {
   my $sponsor = $$hr{$DataCol};
   next if $sponsor eq '';
-  my @sponsors = split(m#\s*/\s*#, $sponsor);
+  my @sponsors = grep($_ ne '', split(m#\s*/\s*#, $sponsor));
   if ($Mode eq 'p') {
     # Patch mode -- compute a new sponsor and print a diff
     my $key = join('_', map($$hr{$_}, @KeyCols));
