@@ -16,9 +16,9 @@ use Text::CSV;
 use Text::Wrap;
 
 use strict;
-use vars qw(%LOGO $CKPath %ClassKey $LIST);
+use vars qw(%LOGO $CKPath %ClassKey @CSVFields $LIST);
 use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
-use vars qw($DBPath $DB $Template $Printer $SERVER $USERID $PASSWD);
+use vars qw($DBPath $DB $Template $Printer $CSVOut $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
 
 $LOGO{logo_dir} = "$ENV{HOME}/runoffs/Images";
@@ -29,15 +29,24 @@ $DBPath   = "$ENV{HOME}/runoffs/Results/actions.db";
 $CKPath   = "$ENV{HOME}/runoffs/Results/sessions.csv";
 $Template = join('', <DATA>);
 
+# Need session type/date,
+@CSVFields = qw(act_number act_datetime act_type act_initiated_by
+  ses_type ses_planned_start
+  protestee protesteeCar protesteeClass protestor protestorCar protestorClass
+  act_gcr_section act_tech_penalty act_description
+  act_accepted_flag act_cs_acked_flag act_delete_flag act_hold_results_flag
+  _last_update
+  );
+
 $Text::Wrap::unexpand = 0;
 
 
 sub usage  {
   print STDERR @_, "\n" if @_;
   print <<"EOF";
-Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer]
+Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer] [-E export]
                  [-rm] [file]
-       actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer]
+       actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer] [-E export]
                  [-au] [-f] act_no...
        actionmon -h
   -d  Debug
@@ -59,6 +68,7 @@ Usage: actionmon [-dvx] [-H host] [-U user] [-P pass] [-D dbpath] [-p printer]
   -C  class key list [$CKPath]
   -D  database file [$DBPath]
   -p  Print to specified printer
+  -E  Export CSV (tab-separated) to named path
 
 EOF
   exit !!@_;
@@ -67,7 +77,7 @@ EOF
 sub parse_args () {
   my %opts;
 
-  getopts('adfhlmruvxp:C:D:H:U:P:', \%opts) or usage("Invalid option!");
+  getopts('adfhlmruvxp:C:D:E:H:U:P:', \%opts) or usage("Invalid option!");
   usage()    if $opts{h};
   $DEBUG++   if $opts{d};
   $VERBOSE++ if $opts{v};
@@ -82,6 +92,7 @@ sub parse_args () {
   $CKPath   = $opts{C} if defined $opts{C};
   $DBPath   = $opts{D} if defined $opts{D};
   $Printer  = $opts{p} if defined $opts{p};
+  $CSVOut   = $opts{E} if defined $opts{E};
   $SERVER   = $opts{H} if defined $opts{H};
   $USERID   = $opts{U} if defined $opts{U};
   $PASSWD   = $opts{P} if defined $opts{P};
@@ -143,6 +154,25 @@ sub db_fetch_action ($) {
 
 sub db_list_actions () {
   return $DB->selectcol_arrayref('select distinct aid from action_data');
+}
+
+sub db_export_csv () {
+  my $F = IO::File->new("$CSVOut.NEW", O_RDWR|O_CREAT|O_TRUNC, 0644)
+    or die "$CSVOut.NEW: $!\n";
+  my $C = Text::CSV->new({
+    binary => 1, eol => "\r\n",
+    quote_space => 0,
+    quote_binary => 0,
+    sep_char => "\t",
+    });
+  $C->column_names(@CSVFields);
+  $C->print($F, [ @CSVFields ]);
+  foreach my $aid (sort { $a <=> $b } @{ db_list_actions() // [] }) {
+    my $a = db_fetch_action($aid);
+    $C->print_hr($F, $a);
+  }
+  $F->close;
+  rename("$CSVOut.NEW", $CSVOut) or die "$CSVOut: $!\n";
 }
 
 
@@ -434,6 +464,7 @@ sub process_actions ($) {
     print_report($Template, $a) if $Printer && ($FORCE || !$existing);
   }
 
+  db_export_csv() if $CSVOut && $count;
 
   if ($MONITOR) {
     my $done = strftime("%b %d %H:%M", localtime(time));
