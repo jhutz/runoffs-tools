@@ -330,13 +330,11 @@ sub process_actions ($) {
   foreach my $a (@actions) {
     my $aid = $$a{act_number};
     my $stamp = strftime("%b %d %H:%M", localtime(time));
+    my $existing = db_action_exists($aid) && db_fetch_action($aid);
 
     if ($UPDATE) {
       #print "$aid / ", join(' ', @ARGV), "\n";
       next unless grep($aid == $_, @ARGV);
-    } elsif (db_action_exists($aid)) {
-      print "$stamp DUP $aid\n" if $MONITOR && $VERBOSE;
-      next;
     }
 
     # This will get overwritten with a longer form in the detail page
@@ -345,9 +343,10 @@ sub process_actions ($) {
     my $atext = get_action_detail($aid, $$a{_rownum}, $$a{_cls_key});
     if ($GETONLY) {
       print $atext;
-      next if $UPDATE;
+      next;
     }
     parse_action($atext, $a);
+    $$a{_last_update} = time;
 
     $$a{_session} = $ClassKey{lc($$a{act_cls_key})} if $$a{_session} eq '';
     ($$a{_date}, $$a{_time}) = split(' ', $$a{act_datetime});
@@ -375,6 +374,16 @@ sub process_actions ($) {
     my @_entries_full  = map("#$$_[0] $$_[1] $$_[2]", @entries);
     $$a{_entries_brief} = join(', ', map("#$$_[0] $$_[1]", @entries));
     $$a{_entries_summary} = @entries > 1 ? $$a{_entries_brief} : $_entries_full[0];
+
+    if ($existing && !$FORCE) {
+      if ( !grep(!/^_/ && !exists($$a{$_}), keys %$existing)
+        && !grep(!/^_/ && !exists($$existing{$_}), keys %$a)
+        && !grep(!/^_/ && $$a{$_} ne $$existing{$_}, keys %$a)) {
+        # No change; move along
+        print "$stamp UNCHANGED $aid\n" if $MONITOR && $VERBOSE;
+        next;
+      }
+    }
 
     if (@entries) {
       foreach (@_entries_full) {
@@ -421,10 +430,8 @@ sub process_actions ($) {
       print STDERR "\n";
     }
 
-    if ($FORCE || ! db_action_exists($aid)) {
-      db_store_action($aid, $a);
-      print_report($Template, $a) if $Printer;
-    }
+    db_store_action($aid, $a);
+    print_report($Template, $a) if $Printer && ($FORCE || !$existing);
   }
 
 
