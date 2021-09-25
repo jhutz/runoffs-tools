@@ -2,6 +2,7 @@
 
 use Data::Dumper;
 use Text::CSV;
+use vars qw($Cfg);
 
 @gcols = ('Name','Given Name','Additional Name','Family Name',
   'Yomi Name','Given Name Yomi','Additional Name Yomi','Family Name Yomi',
@@ -10,6 +11,20 @@ use Text::CSV;
   'Mileage','Occupation','Hobby','Sensitivity','Priority','Subject','Notes',
   'Group Membership','E-mail 1 - Type','E-mail 1 - Value'
 );
+
+## Load configuration
+{
+  my $cfg = "$ENV{HOME}/runoffs/Results/runoffs-tools.cfg";
+  my $F = IO::File->new($cfg, O_RDONLY) or die "$cfg: $!\n";
+  while (<$F>) {
+    s/\s*$//;
+    next unless s/^\s*(\w+)=\s*//;
+    my $k = $1;
+    s/^'([^']*)'$/$1/ || s/^"([^"]*)"$/$1/;
+    $Cfg{$k} = $_;
+  }
+  $F->close;
+}
 
 my $IN = Text::CSV->new( { binary => 1 });
 $IN->column_names($IN->getline(\*STDIN));
@@ -23,17 +38,17 @@ $OUT->print(\*STDOUT, \@gcols);
 while ($hr = $IN->getline_hr(\*STDIN)) {
   #print STDERR Dumper($hr);
   $OUT->print_hr(\*STDOUT, {
-      'Name'             => join(' ', $$hr{'Car No.'}, $$hr{'Class'},
-        $$hr{'First'}, $$hr{'Last'}),
-      'Given Name'       => $$hr{'First'},
-      'Family Name'      => $$hr{'Last'},
+      'Name'             => join(' ', $$hr{'No.'}, $$hr{'Class'},
+        $$hr{'First Name'}, $$hr{'Last Name'}),
+      'Given Name'       => $$hr{'First Name'},
+      'Family Name'      => $$hr{'Last Name'},
       'Notes'            => join("\n",
-        'Member #' . $$hr{'Member ID'} . ' (' . $$hr{'Reg Abbrev'} . ')',
-        join(' ', $$hr{'Car No.'}, $$hr{'Class'}),
-        join(' ', $$hr{'Color'}, $$hr{'Make/Model Only'}),
-        'Transponder #' . $$hr{'Transponder'},
+        'Member #' . $$hr{'Member #'} . ' (' . $$hr{'Region'} . ')',
+        join(' ', $$hr{'No.'}, $$hr{'Class'}),
+        join(' ', $$hr{'Color'}, $$hr{'Make/Model'}),
+        'Transponder #' . $$hr{'Transponder ID'},
       ),
-      'Group Membership' => '* Runoffs2019',
+      'Group Membership' => '* Runoffs' . $Cfg{year},
       'E-mail 1 - Type'  => '* ',
       'E-mail 1 - Value' => $$hr{'Email'},
     });
