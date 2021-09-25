@@ -1558,7 +1558,7 @@ def show_change_results(recs):
         if not data['isRelevant'] and not Options.irrelevant:
             continue
         if (Options.pending and data['appliedA'] and data['appliedB'] and
-                data['appliedC'] and data['appliedR']):
+                data['appliedR']):
             continue
         if Options.pending_A or Options.pending_B or Options.pending_C or Options.pending_R:
             if not (Options.pending_A and not data['appliedA'] or
@@ -1650,7 +1650,7 @@ def do_print():
             recs = [ x for x in db_fetch_all_changes()
                     if x['isRelevant'] and not x['printed'] and
                     not (x['appliedA'] and x['appliedB'] and
-                        x['appliedC'] and x['appliedR']) ]
+                        x['appliedR']) ]
     recs = sorted(recs, key=lambda r: r['xid'])
     for rec in recs:
         print_change(rec)
