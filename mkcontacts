@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use Data::Dumper;
+use IO::File;
 use Text::CSV;
 use vars qw($Cfg);
 
@@ -26,8 +27,19 @@ use vars qw($Cfg);
   $F->close;
 }
 
-my $IN = Text::CSV->new( { binary => 1 });
-$IN->column_names($IN->getline(\*STDIN));
+my $head = <STDIN>;
+my $IN = Text::CSV->new( { binary => 1,
+    quote_space => 0,
+    quote_binary => 0,
+    ($head =~ /\t/) ? (
+      sep_char    => "\t",
+      quote_char  => ($head =~ /"/ ? '"' : undef),
+      always_quote => ($head =~ /^"/ ? 1 : 0),
+      escape_char => undef,
+    ) : ()
+  });
+$IN->parse($head) or die "failed parsing data column headers\n";
+$IN->column_names($IN->fields());
 
 my $OUT = Text::CSV->new( {
     quote_space => 0, binary => 1, eol => "\n",
