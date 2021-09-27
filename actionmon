@@ -16,7 +16,7 @@ use Text::CSV;
 use Text::Wrap;
 
 use strict;
-use vars qw(%LOGO $CKPath %ClassKey @CSVFields $LIST);
+use vars qw(%LOGO $CKPath %ClassKey %Session @CSVFields $LIST);
 use vars qw($DEBUG $VERBOSE $GETONLY $MONITOR $REPORT $UPDATE $FORCE);
 use vars qw($DBPath $DB $Template $Printer $CSVOut $SERVER $USERID $PASSWD);
 use vars qw($URLBase $LoginURL $ListURL $GetURL $UA %FormInputs);
@@ -169,6 +169,8 @@ sub db_export_csv () {
   $C->print($F, [ @CSVFields ]);
   foreach my $aid (sort { $a <=> $b } @{ db_list_actions() // [] }) {
     my $a = db_fetch_action($aid);
+    my $s = $Session{lc($$a{act_cls_key})};
+    $$a{$_} //= $$s{$_} foreach (keys %$s);
     $C->print_hr($F, $a);
   }
   $F->close;
@@ -379,6 +381,9 @@ sub process_actions ($) {
     $$a{_last_update} = time;
 
     $$a{_session} = $ClassKey{lc($$a{act_cls_key})} if $$a{_session} eq '';
+    my $s = $Session{lc($$a{act_cls_key})};
+    $$a{$_} //= $$s{$_} foreach (keys %$s);
+
     ($$a{_date}, $$a{_time}) = split(' ', $$a{act_datetime});
     if    ($$a{act_type} eq 'CSA')     { $$a{_auth} = 'Chief Steward' }
     elsif ($$a{act_type} eq 'RFA')     { $$a{_auth} = 'SOM'           }
@@ -552,6 +557,7 @@ parse_args;
   print STDERR "Loading class keys...\n" if $DEBUG;
   while (my $hr = $C->getline_hr($F)) {
     print STDERR Dumper($hr) if $DEBUG;
+    $Session{lc($$hr{cls_key})} = $hr;
     $ClassKey{lc($$hr{cls_key})} = $$hr{fullName};
   }
   print STDERR Dumper(\%ClassKey) if $DEBUG;
