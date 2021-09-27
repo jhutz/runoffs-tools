@@ -623,6 +623,7 @@ if ($UPDATE) {
 } elsif ($LIST > 1) {
   print_actions();
 } elsif ($LIST) {
+  db_export_csv() if $CSVOut;
   list_actions();
 } elsif ($GETONLY) {
   print get_data();
