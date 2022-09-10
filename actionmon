@@ -26,7 +26,7 @@ $LOGO{logo_dir} = "$ENV{HOME}/runoffs/Images";
 $SERVER   = 'racecontrol.scca.com';
 $USERID   = 'tandsusr1';
 $DBPath   = "$ENV{HOME}/runoffs/Results/actions.db";
-$CKPath   = "$ENV{HOME}/runoffs/Results/sessions.csv";
+$CKPath   = "$ENV{HOME}/runoffs/Results/sessions.tsv";
 $Template = join('', <DATA>);
 
 # Need session type/date,
