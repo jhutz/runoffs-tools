@@ -12,16 +12,18 @@ group="$1"
 gfile=$(echo $group | sed -e 's#/#,#g')
 passings="$2"
 
-when=$(grep "^$group", $basedir/Documentation/schedule.csv | cut -d, -f6)
+when=$(grep "^$group	" $basedir/Results/schedule.csv | cut -f5)
 if [ -z "$when" ] ; then
   echo "Unknown group $group"
   exit 1
 fi
-t=$(perl -e 'print int($ARGV[0] * 86400.0) - (2208988800 + 86400 + 86400)' $when)
-day=$(date -ud@$t +'%A, %B %-d, %Y')
-time=$(date -ud@$t +'%H:%M')
+t="$when"
+#t=$(perl -e 'print "@", int($ARGV[0] * 86400.0) - (2208988800 + 86400 + 86400)' $when)
+day=$(date -u "-d$t" +'%A, %B %-d, %Y')
+time=$(date -u "-d$t" +'%H:%M')
 echo $day; echo $time
 
+grep 'Flag' "$2"
 chartroom -C "$2" "$chartdir/$gfile.crx" group="$group" date="$day" time="$time"
 chartroom -P "$chartdir/$gfile.crx" /tmp/chart/$gfile.ps
 ps2pdf /tmp/chart/$gfile.ps $workdir/"$gfile Runoffs$year Race Lapchart.pdf"
