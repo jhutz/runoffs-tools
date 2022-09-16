@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+
+use IO::File;
+use Text::CSV;
+use strict;
+
+use vars qw(%Groups %Numbers %Suffix);
+use vars qw($GroupList);
+
+$GroupList = "$ENV{HOME}/runoffs/Entries/test_groups.txt";
+
+my $F = new IO::File($GroupList, O_RDONLY) or die "$GroupList: $!\n";
+while (<$F>) {
+  next if /^\s*$/;
+  chomp;
+  my($day, @classes) = split;
+  my $gp = join('/', @classes);
+  foreach my $class (@classes) {
+    $Groups{$day}{$class} = $gp;
+  }
+}
+$F->close;
+
+my $head = <>;
+my $C = Text::CSV->new( { binary => 1,
+    quote_space => 0,
+    quote_binary => 0,
+    ($head =~ /\t/) ? (
+      sep_char    => "\t",
+      quote_char  => ($head =~ /"/ ? '"' : undef),
+      always_quote => ($head =~ /^"/ ? 1 : 0),
+      escape_char => undef,
+    ) : ()
+  });
+$C->parse($head) or die "failed parsing data column headers\n";
+my @cols = $C->fields();
+$C->column_names(@cols);
+binmode STDOUT, ':utf8';
+$C->eol("\r\n");
+$C->print(\*STDOUT, \@cols);
+
+while (my $hr = $C->getline_hr(\*STDIN)) {
+  my $carno = $$hr{'No.'};
+  my $class = $$hr{'Class'};
+  my $suffix = undef;
+
+  foreach my $day (split(' ', $$hr{'Test Days'})) {
+    my $gp = $Groups{$day}{$class} // $class;
+    next unless $Numbers{$day}{$gp}{$carno}++;
+    $suffix //= chr(97 + $Suffix{$carno}++);
+  }
+
+  $$hr{'No.'} .= $suffix;
+  $C->print_hr(\*STDOUT, $hr);
+}
