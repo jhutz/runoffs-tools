@@ -440,7 +440,9 @@ sub process_actions ($) {
 
     if (!$UPDATE && (
         $$a{act_number} eq '' || !$$a{act_datetime} ||
-        !$$a{act_type} || !$$a{act_initiated_by} || !@entries)) {
+        !$$a{acs_name} || $$a{acs_name} eq 'New' ||
+        !$$a{act_type} || #$$a{act_type} eq 'NEW' ||
+        !$$a{act_initiated_by} || !@entries)) {
       $report .= "  NOT READY\n";
       $mreport .= "$stamp $report";
       print $report if $VERBOSE;
