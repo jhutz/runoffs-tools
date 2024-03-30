@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import argparse, csv, itertools, os, sys, time
+import argparse, csv, datetime, itertools, os, sys, time
 
 # This maps a decoder's MAC address to a set of timelines it handles.
 # The valid timeline names are 'Start', 'LapCtr', and 'Finish'.
@@ -41,7 +41,7 @@ def load_dir(path, data):
         elif file.endswith('.txt'):
             load_file(sub, data)
 
-def process(inputs, outfile):
+def process(inputs, outfile, show_times=False):
     # Read lines from all input files; then sort by timestamp
     data = list()
     for path in inputs:
@@ -67,18 +67,39 @@ def process(inputs, outfile):
             warn(rec, f'Unknown decoder {device}')
             continue
         timelines = decoders[device]
+        stamp = datetime.datetime.fromisoformat(rec['Time'])
     
         run = active.get(chip)
+        laptime = stamp - run['last'] if run else None
+        if run:
+            lap_s = laptime.total_seconds()
+            if lap_s > 3600:
+                warn(rec, f'Incomplete prior run for {chip} ({run["laps"]} laps since {run["start"]})')
+                complete.append(run)
+                del active[chip]
+                run = None
+            elif lap_s < 120 and 'Start' in timelines:
+                warn(rec, f'Short lap ({lap_s}s) abandons existing run for {chip}')
+                complete.append(run)
+                del active[chip]
+                run = None
+
         if run:
             # Chip has an active run; update as appropriate
             # NB: The order of these tests matters, since a single decoder
             # might fit multiple roles
             if 'Finish' in timelines:
+                #XXX don't count laps under 2 min
+                run['last']   = stamp
+                run['times'].append(laptime)
                 run['laps']   += 1
                 run['finish'] = rec['Time']
                 complete.append(run)
                 del active[chip]
             elif 'LapCtr' in timelines:
+                #XXX don't count laps under 2 min
+                run['last']  = stamp
+                run['times'].append(laptime)
                 run['laps'] += 1
             elif 'Start' in timelines:
                 warn(rec, f'Start passing abandons existing run for {chip} ({run["laps"]} laps since {run["start"]})')
@@ -86,16 +107,20 @@ def process(inputs, outfile):
                 active[chip] = dict(
                   chip  = chip,
                   car   = car,
+                  last  = stamp,
                   start = rec['Time'],
-                  laps  = 0
+                  laps  = 0,
+                  times = [],
                   )
         elif 'Start' in timelines:
             # No active run for this chip
             active[chip] = dict(
               chip  = chip,
               car   = car,
+              last  = stamp,
               start = rec['Time'],
-              laps  = 0
+              laps  = 0,
+              times = [],
               )
         else:
             warn(rec, f'No active run for chip {chip}')
@@ -110,7 +135,10 @@ def process(inputs, outfile):
     outfile.write('\n')
     for run in sorted(complete, key = lambda x: x['start']):
         writer.writerow(run)
-
+        if show_times:
+            for t in run['times']:
+                outfile.write(',' + str(t))
+        outfile.write('\n')
 
 
 def main():
@@ -119,6 +147,8 @@ def main():
       help='Enable debugging')
     ap.add_argument('-o', '--output', help='Output file')
     ap.add_argument('-s', '--sleep',  type=int, help='Delay between runs')
+    ap.add_argument('-t', '--times',  action='store_true',
+      help='Include lap times')
     ap.add_argument('input', nargs='+', help='Files to process')
     opts = ap.parse_args()
 
@@ -127,7 +157,7 @@ def main():
             with open(opts.output, 'w') as output:
                 process(opts.input, output)
         else:
-            process(opts.input, sys.stdout)
+            process(opts.input, sys.stdout, show_times=opts.times)
         if opts.sleep:
             time.sleep(opts.sleep)
             #print('', file=sys.stderr, flush=True)
