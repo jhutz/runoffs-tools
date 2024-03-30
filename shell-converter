@@ -7,8 +7,9 @@ import argparse, csv, itertools, sys, time
 # The same decoder can be used for multiple timelines, but combining
 # 'LapCtr' and 'Finish' doesn't make much sense.
 decoders = {
-  '0004B7020FD7' : { 'Start', 'LapCtr' },
-  '0004B704061D' : { 'Finish' },
+  '0004B704061D' : { 'Start', 'LapCtr' },
+  '0004B7021482' : { 'Finish' },
+  'STOP'         : { 'Finish' },
   }
 
 def warn(rec, msg):
@@ -21,15 +22,18 @@ def process(inputs, outfile):
     # Read lines from all input files; then sort by timestamp
     data = list()
     for path in inputs:
-        with open(path, encoding='cp1252', errors='replace') as f:
-            reader = csv.DictReader(f, skipinitialspace=True)
-            data.extend([
-                # Add file and line# to every record.
-                # We start at line 2, because line 1 is the header
-                # XXX look for missing timestamps
-                dict(**rec, _file=path, _line=lno)
-                for rec, lno in zip(reader, itertools.count(2))
-                ])
+        try:
+          with open(path, encoding='cp1252', errors='replace') as f:
+              reader = csv.DictReader(f, skipinitialspace=True)
+              data.extend([
+                  # Add file and line# to every record.
+                  # We start at line 2, because line 1 is the header
+                  # XXX look for missing timestamps
+                  dict(**rec, _file=path, _line=lno)
+                  for rec, lno in zip(reader, itertools.count(2))
+                  ])
+        except FileNotFoundError:
+            print(f'WARNING: {path} not found', file=sys.stderr, flush=True)
     
     writer = csv.DictWriter(outfile,
       fieldnames = ['car', 'start', 'finish', 'laps' ],
@@ -37,11 +41,13 @@ def process(inputs, outfile):
       )
     #writer.writeheader()
     active = dict()
+    complete = []
     for rec in sorted(data, key = lambda x: x['Time']):
         chip   = rec.get('Code')
         device = rec.get('Device')
         car    = rec.get('No') or f'#{chip}'
-        if car == 'unknown': car = f'#{chip}'
+        if car == 'unknown' or car == '-1':
+            car = f'#{chip}'
     
         if chip   is None: warn(rec, 'Missing chip code')
         if device is None: warn(rec, 'Missing device (MAC address)')
@@ -60,14 +66,19 @@ def process(inputs, outfile):
             if 'Finish' in timelines:
                 run['laps']   += 1
                 run['finish'] = rec['Time']
-                writer.writerow(run)
+                complete.append(run)
                 del active[chip]
             elif 'LapCtr' in timelines:
                 run['laps'] += 1
             elif 'Start' in timelines:
                 warn(rec, f'Start passing abandons existing run for {chip} ({run["laps"]} laps since {run["start"]})')
-                run['start'] = rec['Time']
-                run['laps']  = 0
+                complete.append(run)
+                active[chip] = dict(
+                  chip  = chip,
+                  car   = car,
+                  start = rec['Time'],
+                  laps  = 0
+                  )
         elif 'Start' in timelines:
             # No active run for this chip
             active[chip] = dict(
@@ -79,8 +90,9 @@ def process(inputs, outfile):
         else:
             warn(rec, f'No active run for chip {chip}')
     
-    for run in sorted(active.values(), key = lambda x: x['start']):
-        print(f'Run started at {run["start"]} for {run["chip"]} incomplete with {run["laps"]} laps', file=sys.stderr)
+    complete.extend(active.values())
+    for run in sorted(complete, key = lambda x: x['start']):
+        writer.writerow(run)
 
 
 
@@ -101,7 +113,7 @@ def main():
             process(opts.input, sys.stdout)
         if opts.sleep:
             time.sleep(opts.sleep)
-            print('', file=sys.stderr, flush=True)
+            #print('', file=sys.stderr, flush=True)
         else:
             break
 
