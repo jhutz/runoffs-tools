@@ -97,7 +97,7 @@ sub parse_args () {
   $USERID   = $opts{U} if defined $opts{U};
   $PASSWD   = $opts{P} if defined $opts{P};
 
-  $URLBase  = "http://$SERVER/racecontrol/";
+  $URLBase  = "https://$SERVER/";
   $LoginURL = $URLBase . 'Login.aspx';
   $ListURL  = $URLBase . 'Actions.aspx';
   $GetURL   = $URLBase . 'GetAction.aspx?ActionNum=';
