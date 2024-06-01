@@ -381,6 +381,13 @@ foreach my $group (@RGroups) {
   s/\r?\n$//;
   @Cols = split(/\t/, $_);
   my %fields = map(($Cols[$_] => $_), 0 .. @Cols-1);
+  if (exists($fields{'Vehicle Sponsor'}) && !exists($fields{'Sponsor'})) {
+    # Horrible Kludge!!!
+    # If a column header is 'Vehicle Sponsor', pretend it was just 'Sponsor'
+    $fields{'Sponsor'} = $fields{'Vehicle Sponsor'};
+    $Cols[$fields{'Vehicle Sponsor'}] = 'Sponsor';
+    delete $fields{'Vehicle Sponsor'};
+  }
   foreach (keys %ColNames) {
     next unless exists $fields{$ColNames{$_}};
     $Cols{$_} = $fields{$ColNames{$_}};
