@@ -5,7 +5,7 @@ use IO::File;
 
 use strict;
 use vars qw($DEBUG $QUIET $VERBOSE $OUT $KeyOUT $TabOUT);
-use vars qw(@QGroups @RGroups %YearClasses %EngineClasses %FixedMM %Words);
+use vars qw(@QGroups @RGroups %YearClasses %YMMClasses %EngineClasses %FixedMM %Words);
 use vars qw(%ColNames %Validate);
 use vars qw(@Cols %Cols %QualGroup %QualSub %RaceGroup %Keys);
 use vars qw($format $carno $class $name);
@@ -17,6 +17,7 @@ use vars qw($format $carno $class $name);
 #@RGroups = qw(FE/FE2 FA/FB);
 
 %YearClasses   = map(($_ => 1), qw(EP FP HP SM T1 T2 T3 T4));
+%YMMClasses    = map(($_ => 1), qw(SM SMX SSM));
 %EngineClasses = map(($_ => 1), qw(F5 F6 FA FB FF FX P1 P2));
 
 my %FM_Word = map(($_ => 1), qw[Star Formula Mazda FM]);
@@ -450,7 +451,9 @@ while (<>) {
     }
     $fields[$Cols{$field}] = $value;
     if (($field eq 'make' || $field eq 'model') && exists $Cols{_mm}) {
+      my $year = $fields[$Cols{year}];
       $fields[$Cols{_mm}] = $fields[$Cols{make}] . ' ' . $fields[$Cols{model}];
+      $fields[$Cols{_mm}] = $year . ' ' . $fields[$Cols{_mm}] if $year && $YMMClasses{$class};
       $fields[$Cols{_mm}] =~ s/\s+/ /g;
       $fields[$Cols{_mm}] =~ s/^\s*//g;
       $fields[$Cols{_mm}] =~ s/\s*$//g;
