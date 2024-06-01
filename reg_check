@@ -22,10 +22,12 @@ use vars qw($format $carno $class $name);
 my %FM_Word = map(($_ => 1), qw[Star Formula Mazda FM]);
 %FixedMM = (
   FE   => [ 'SCCA', 'Mazda FE',               'SCCA Mazda FE'              ],
-  FE2  => [ 'SCCA', 'Mazda FE2',              'SCCA Mazda FE2'             ],
+  #FE2  => [ 'SCCA', 'Mazda FE2',              'SCCA Mazda FE2'             ],
   FM   => [ 'Star',  'Formula Mazda',         'Star Formula Mazda'         ],
   SM   => [ 'Mazda', 'Miata',                 'Mazda Miata'                ],
-  SRF3 => [ 'SCCA',  'Spec Racer Ford Gen 3', 'SCCA Spec Racer Ford Gen 3' ],
+  #SRF3 => [ 'SCCA',  'Spec Racer Ford Gen 3', 'SCCA Spec Racer Ford Gen 3' ],
+  SRF3 => [ 'SCCA Ent', 'SRF3',               'SCCA Ent SRF3' ],
+  FE2  => [ 'SCCA Ent', 'FE2',                'SCCA Ent FE2'  ],
 );
 
 ## Columns we have special interest in
