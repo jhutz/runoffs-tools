@@ -617,7 +617,7 @@ LOAD_LOGO: {
 $UA = new LWP::UserAgent;
 $UA->cookie_jar( {} );
 push @{ $UA->requests_redirectable }, 'POST';
-$UA->show_progress(1);
+$UA->show_progress(1) if $DEBUG;
 
 db_open();
 if ($UPDATE) {
@@ -634,6 +634,7 @@ if ($UPDATE) {
 } elsif ($MONITOR) {
   while (1) {
     process_actions(get_data());
+    print "\n";
     sleep(30);
   }
 } else {
