@@ -48,8 +48,8 @@ my %FM_Word = map(($_ => 1), qw[Star Formula Mazda FM]);
   color    => 'Color',
   sponsor  => 'Sponsor',
   group    => 'Group',
-  mm       => 'Vehicle Make/Model',
-  ht       => 'City/State',
+  _mm      => 'Vehicle Make/Model',
+  _ht      => 'City/State',
 );
 
 sub usage {
@@ -347,8 +347,8 @@ sub v_miata ($$$) {
   make     => [ \&v_fixed_make, \&v_nonblank, \&v_namecaps,  ],
   model    => [ \&v_miata,     \&v_fixed_model, \&v_nonblank,  \&v_namecaps, ],
   engine   => [ \&v_nb_engine, \&v_namecaps,  ],
-  ht       => [ \&v_comma_sp,  \&v_nonblank,  \&v_namecaps ],
-  mm       => [ \&v_fixed_mm,  \&v_nonblank,  \&v_namecaps, ],
+  _ht      => [ \&v_comma_sp,  \&v_nonblank,  \&v_namecaps ],
+  _mm      => [ \&v_fixed_mm,  \&v_nonblank,  \&v_namecaps ],
 );
 
 parse_args;
@@ -428,7 +428,7 @@ while (<>) {
       }
       $fields[$Cols{make}] = 'Star';
       $fields[$Cols{model}] = 'Formula Mazda';
-      $fields[$Cols{mm}] = 'Star Formula Mazda' if exists $Cols{mm};
+      $fields[$Cols{_mm}] = 'Star Formula Mazda' if exists $Cols{_mm};
     }
   }
 
@@ -440,17 +440,17 @@ while (<>) {
       $value = $cb->($ColNames{$field}, $value, \@fields);
     }
     $fields[$Cols{$field}] = $value;
-    if (($field eq 'make' || $field eq 'model') && exists $Cols{mm}) {
-      $fields[$Cols{mm}] = $fields[$Cols{make}] . ' ' . $fields[$Cols{model}];
-      $fields[$Cols{mm}] =~ s/\s+/ /g;
-      $fields[$Cols{mm}] =~ s/^\s*//g;
-      $fields[$Cols{mm}] =~ s/\s*$//g;
+    if (($field eq 'make' || $field eq 'model') && exists $Cols{_mm}) {
+      $fields[$Cols{_mm}] = $fields[$Cols{make}] . ' ' . $fields[$Cols{model}];
+      $fields[$Cols{_mm}] =~ s/\s+/ /g;
+      $fields[$Cols{_mm}] =~ s/^\s*//g;
+      $fields[$Cols{_mm}] =~ s/\s*$//g;
     }
-    if (($field eq 'city' || $field eq 'state') && exists $Cols{ht}) {
-      $fields[$Cols{ht}] = $fields[$Cols{city}] . ' ' . $fields[$Cols{state}];
-      $fields[$Cols{ht}] =~ s/\s+/ /g;
-      $fields[$Cols{ht}] =~ s/^\s*//g;
-      $fields[$Cols{ht}] =~ s/\s*$//g;
+    if (($field eq 'city' || $field eq 'state') && exists $Cols{_ht}) {
+      $fields[$Cols{_ht}] = $fields[$Cols{city}] . ' ' . $fields[$Cols{state}];
+      $fields[$Cols{_ht}] =~ s/\s+/ /g;
+      $fields[$Cols{_ht}] =~ s/^\s*//g;
+      $fields[$Cols{_ht}] =~ s/\s*$//g;
     }
   }
 
