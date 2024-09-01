@@ -1,0 +1,76 @@
+#!/usr/bin/perl
+
+use Data::Dumper;
+use Text::CSV;
+use XML::Parser;
+
+$tracklen = undef;
+if ($ARGV[0] =~ /^-l/) {
+  $tracklen = $'; shift @ARGV;
+}
+
+# Given an array ref describing the content of an XML element, find all
+# child elements with the given tag name and do some processing on them.
+# The input tree should be of the form required by find_child().
+#
+# For each child element found, the provided callback will be called with
+# $_ set to an array ref describing that element's attributes and children.
+# The final result is a list of the callback's return values.
+sub map_children (&$$) {
+  my($cb, $tree, $tag) = @_;
+  my(@answers);
+
+  for (my $i = ref($$tree[0]) eq 'HASH'; $i < @$tree; $i += 2) {
+    next unless $$tree[$i] eq $tag;
+    $_ = $$tree[$i+1];
+    push(@answers, ($cb->()));
+  }
+  @answers;
+}
+
+sub parse_lap_time ($) {
+  return undef unless $_[0] =~ /^(?:(\d*):)?(\d*):(\d+)(?:\.(\d+))?$/;
+  return ((3600000 * $1) + (60000 * $2) + (1000 * $3) + $4) || undef;
+}
+
+sub print_lap_time ($) {
+  my($t) = @_;
+  sprintf("%02d:%02d.%03d", $t / 60000, ($t / 1000) % 60, $t % 1000);
+}
+
+$P = new XML::Parser(Style => 'Tree');
+$tree = $P->parse(\*STDIN);
+if (ref($tree) ne 'ARRAY' || $$tree[0] ne 'TRACKRECORDS') {
+  die "Input is not a TRACKRECORD element!\n"
+}
+
+my $OUT = Text::CSV->new({
+    binary => 1, eol => "\r\n",
+    quote_space => 0,
+    quote_binary => 0,
+    sep_char => "\t",
+  });
+$OUT->column_names(qw(Class Driver Time Speed Date 115% Car# XML-Date));
+$OUT->print(\*STDOUT, [$OUT->column_names()]);
+
+map_children {
+  my $rec = $$_[0];
+  my $laptime = parse_lap_time($$rec{laptime});
+  my ($DD, $MM, $YY) = (localtime($$rec{date} / 1000000))[3,4,5];
+  $YY += 1900;
+  my $speed = '';
+  if ($laptime && defined($tracklen)) {
+    $speed = sprintf("%.2f", $tracklen / ($laptime / 3600000.0));
+  }
+
+  $OUT->print_hr(\*STDOUT, {
+    Class       => $$rec{class},
+    Driver      => $$rec{comment} =~ s/\s*(\*\s*)?-\s*.*//r,
+    Time        => print_lap_time($laptime),
+    Speed       => $speed,
+    Date        => "$MM/$DD/$YY",
+    '115%'      => print_lap_time(int($laptime * 1.15)),
+    'Car#'      => '',
+    'XML-Date'  => $$rec{date},
+    });
+} $$tree[1], 'RECORD'
