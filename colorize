@@ -61,7 +61,8 @@ $OUT->print(\*STDOUT, [qw[key field old new]]);
 
 LINE: while ($hr = $IN->getline_hr(\*STDIN)) {
   next if $$hr{'Runoffs Color'} ne '';
-  my @words = split(/\s+(?:and|on)\s+|[\s\/\\,&]+/, lc($$hr{'Color'}));
+  my @words = split(/\s+(?:and|on|-)\s+|[\s\/\\,&]+/,
+    lc($$hr{'Color'} =~ s/\.//gr));
   my @newcols;
   my $class = $$hr{'Class'};
 
@@ -69,16 +70,21 @@ LINE: while ($hr = $IN->getline_hr(\*STDIN)) {
 
   while (@words) {
     my $color = shift @words;
-    if ($ColorMap{$color}) {
-      push(@newcols, $ColorMap{$color});
+    if (exists($ColorMap{$color})) {
+      push(@newcols, $ColorMap{$color}) if $ColorMap{$color};
       next;
     }
     $color .= " $words[0]";
-    if ($ColorMap{$color}) {
-      push(@newcols, $ColorMap{$color});
+    if (exists($ColorMap{$color})) {
+      push(@newcols, $ColorMap{$color}) if $ColorMap{$color};
       shift @words;
       next;
     }
+    printf STDERR ("%-6s %3s %-9s %-30s %s\n",
+      $class, @$hr{'No.','Member #','Name','Color'});
+    next LINE;
+  }
+  if (!@newcols) {
     printf STDERR ("%-6s %3s %-9s %-30s %s\n",
       $class, @$hr{'No.','Member #','Name','Color'});
     next LINE;
