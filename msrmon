@@ -101,6 +101,7 @@ opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
 msr_member_params = { 'fields' : 'questions' }
 msr_attendee_params = { 'fields' : 'questions' }
 msr_assign_params = { 'fields' : 'vehicle_questions' }
+msr_vehicle_params = { 'fields' : 'questions' }
 
 # Relevant fields not included in member/assignment:
 msr_member_only_fields = [ 'regionOfRecord', 'memberEnd', 'uniqueId' ]
@@ -665,6 +666,15 @@ def msr_get_member_dict(cleanup=True):
     return { x['id'] : x for x in j['response']['members'] }
 
 
+def msr_get_vehicle(item):
+    if Options.debug: sys.stderr.write('GET VEHICLE %s\n' % item)
+    (mbr_id, veh_id) = item.split('/')
+    j = msr_get('members/%s/vehicles/%s' % (mbr_id, veh_id), msr_vehicle_params)
+    try: rec = j['response']
+    except KeyError: return None
+    return _msr_cleanup(rec)
+
+
 def _msr_load_fake_attendees():
     global Fake_Attendees
     if 'Fake_Attendees' not in globals():
@@ -968,6 +978,14 @@ def do_members():
         dumpobj(recs)
         return
     print("Human-readable member list not implemented\n")
+
+def do_vehicles():
+    recs = [ msr_get_vehicle(item) for item in Options.items ]
+
+    if Options.dump:
+        dumpobj(recs)
+        return
+    print("Human-readable vehicle report not implemented\n")
 
 def do_attendees():
     if Options.items:
@@ -1731,6 +1749,15 @@ def process_args():
     p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
     p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
     p.set_defaults(_func = do_attendees)
+    p.set_defaults(_required = opts_msr_reqd + ('event-id',))
+
+    p = sp.add_parser('vehicles', help='List vehicles')
+    p.add_argument('items', nargs=argparse.REMAINDER, help='Member/Vehicle IDs to dump')
+    p.add_argument('-l', '--long', action='store_true', help='Show more columns')
+    p.add_argument('-q', '--questions', action='store_true', help='Include questions')
+    p.add_argument('--raw-dates', action='store_true', help="Don't convert dates")
+    p.add_argument('-x', '--dump', action='store_true', help='Dump raw data')
+    p.set_defaults(_func = do_vehicles)
     p.set_defaults(_required = opts_msr_reqd + ('event-id',))
 
     p = sp.add_parser('assigns', help='List assignments')
