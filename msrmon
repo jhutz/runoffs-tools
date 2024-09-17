@@ -100,7 +100,7 @@ opts_msr_reqd = ('server', 'userid', 'password', 'org-id' )
 # Query parameters for some MSR API calls
 msr_member_params = { 'fields' : 'questions' }
 msr_attendee_params = { 'fields' : 'questions' }
-msr_assign_params = { 'fields' : 'vehicle_questions' }
+msr_assign_params = { 'fields' : 'vehicle_questions,flagtronics' }
 msr_vehicle_params = { 'fields' : 'questions' }
 
 # Relevant fields not included in member/assignment:
