@@ -1646,7 +1646,10 @@ def do_flag():
     with DB:
         for item in Options.items:
             (xid, flags) = item.split(':')
-            db_update_change(xid, { "applied" + f.upper() : True for f in flags })
+            db_update_change(xid, {
+                ("printed" if f.upper() == 'P' else "applied" + f.upper()) : True
+                for f in flags
+                })
 
 
 def do_changes():
