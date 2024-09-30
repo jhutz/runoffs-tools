@@ -33,7 +33,7 @@ $Template = join('', <DATA>);
 @CSVFields = qw(act_number act_datetime act_type act_initiated_by
   ses_type ses_planned_start
   protestee protesteeCar protesteeClass protestor protestorCar protestorClass
-  act_gcr_section act_tech_penalty act_description
+  act_gcr_section act_points_accessed act_tech_penalty act_description
   act_accepted_flag act_cs_acked_flag act_delete_flag act_hold_results_flag
   _last_update
   );
@@ -304,11 +304,14 @@ sub get_action_detail ($$$) {
 sub action_summary($;$) {
   my($a, $extra) = @_;
 
-  my $text = sprintf("#%3d %-5s %8s %-7s %-15s",
-    $$a{act_number}, $$a{_date}, $$a{_time}, $$a{act_type},
-    $extra ? $$a{_entries_brief} :
-    ($$a{_entries_summary} || $$a{_entries_brief}));
-  $text .= " $$a{_session}  $$a{act_tech_penalty}" if $extra;
+  my $text = sprintf("#%3d %-5s %8s %-7s",
+    $$a{act_number}, $$a{_date}, $$a{_time}, $$a{act_type});
+  if ($extra) {
+    $text .= sprintf(" %-32s %-15s %2d %s",
+      $$a{_session}, $$a{_entries_brief}, $$a{act_points_accessed}, $$a{act_tech_penalty});
+  } else {
+    $text .= ($$a{_entries_summary} || $$a{_entries_brief});
+  }
   $text =~ s/\s*$//;
   return $text . "\n"
 }
@@ -328,6 +331,7 @@ sub action_detail($) {
 
   $report .= "  $$a{_session}\n";
   $report .= "  $$a{act_tech_penalty}\n" if $$a{act_tech_penalty};
+  $report .= "  $$a{act_points_accessed} points assessed\n" if $$a{act_points_accessed} != 0;
   $report .= "  per $$a{_auth} ($$a{act_gcr_section})\n";
   $report =~ s/per  \(/\(/;
   $report =~ s/\n\s+\(\)\n\Z/\n/;
@@ -730,6 +734,7 @@ moveto show
 (Session)             (@_session@)         Field  newline
 @__entries__@
 (Penalty)             (@act_tech_penalty@) Field  newline
+(Points Assessed)     (@act_points_accessed@) Field  newline
 (GCR/Supp Ref.)       (@act_gcr_section@)  Field  newline
 (By order of)         (@_auth@)            Field  newline
 @__details__@
